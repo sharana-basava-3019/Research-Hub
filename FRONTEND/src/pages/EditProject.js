@@ -1,0 +1,1 @@
+import React from 'react'; const EditProject = () => <div className="container section"><h1>Edit Project</h1></div>; export default EditProject;

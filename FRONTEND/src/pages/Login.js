@@ -137,29 +137,6 @@ const Login = () => {
                 </Link>
               </p>
             </div>
-
-            <div className="mt-4">
-              <div className="position-relative text-center">
-                <hr className="my-4" />
-                <span className="position-absolute top-50 start-50 translate-middle bg-white px-3 text-muted small">
-                  Demo Credentials
-                </span>
-              </div>
-              
-              <div className="mt-3 p-3 bg-light rounded text-center">
-                <p className="fw-medium text-dark mb-2 small">Try it out:</p>
-                <div className="row g-2 text-small">
-                  <div className="col-6">
-                    <strong>Email:</strong>
-                    <div className="text-muted">alice@university.edu</div>
-                  </div>
-                  <div className="col-6">
-                    <strong>Password:</strong>
-                    <div className="text-muted">password123</div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

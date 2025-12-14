@@ -150,9 +150,12 @@ EventSchema.virtual('isRegistrationOpen').get(function() {
 // Method to register user
 EventSchema.methods.registerUser = async function(userId) {
   // Check if already registered
-  const existingRegistration = this.registrations.find(
-    r => r.user.toString() === userId.toString()
-  );
+  const existingRegistration = this.registrations.find(r => {
+    const regUserId = (typeof r.user === 'object' && r.user._id) 
+      ? r.user._id.toString() 
+      : r.user.toString();
+    return regUserId === userId.toString();
+  });
   
   if (existingRegistration) {
     throw new Error('User already registered for this event');
@@ -175,18 +178,24 @@ EventSchema.methods.registerUser = async function(userId) {
 
 // Method to cancel registration
 EventSchema.methods.cancelRegistration = async function(userId) {
-  this.registrations = this.registrations.filter(
-    r => r.user.toString() !== userId.toString()
-  );
+  this.registrations = this.registrations.filter(r => {
+    const regUserId = (typeof r.user === 'object' && r.user._id) 
+      ? r.user._id.toString() 
+      : r.user.toString();
+    return regUserId !== userId.toString();
+  });
   await this.save();
   return this;
 };
 
 // Method to check if user is registered
 EventSchema.methods.isUserRegistered = function(userId) {
-  return this.registrations.some(
-    r => r.user.toString() === userId.toString()
-  );
+  return this.registrations.some(r => {
+    const regUserId = (typeof r.user === 'object' && r.user._id) 
+      ? r.user._id.toString() 
+      : r.user.toString();
+    return regUserId === userId.toString();
+  });
 };
 
 module.exports = mongoose.model('Event', EventSchema);

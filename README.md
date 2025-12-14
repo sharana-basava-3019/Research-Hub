@@ -24,7 +24,7 @@ RESEARCH-HUB is an academic research collaboration platform that enables researc
 ### Folder Structure
 ```
 RESEARCH-HUB/
-├── client/                    # React Frontend
+├── FRONTEND/                  # React Frontend
 │   ├── public/
 │   ├── src/
 │   │   ├── components/        # Reusable components
@@ -100,14 +100,13 @@ npm run dev
 
 ### 3. Frontend Setup (React)
 ```bash
-cd client
+cd FRONTEND
 npm install
 ```
 
-Create `.env` file in client directory:
+Create `.env` file in FRONTEND directory:
 ```env
 REACT_APP_API_URL=http://localhost:5000/api
-REACT_APP_ANALYTICS_URL=http://localhost:8000
 ```
 
 Start the development server:
@@ -115,7 +114,9 @@ Start the development server:
 npm start
 ```
 
-### 4. Analytics Service Setup (Python)
+### 4. Analytics Service Setup (Python - Optional)
+The analytics service is optional and the system will work without it.
+
 ```bash
 cd analytics
 python -m venv venv
@@ -270,6 +271,31 @@ npm test
 Swagger documentation available at:
 - **Development**: http://localhost:5000/api-docs
 - **Production**: https://your-api-url.com/api-docs
+
+## 🚀 Production Deployment
+
+Ready to deploy? Check out our comprehensive deployment guides:
+
+- **[Quick Start Production Guide](./docs/QUICKSTART_PRODUCTION.md)** - 5-minute setup
+- **[Complete Deployment Guide](./docs/PRODUCTION_DEPLOYMENT.md)** - Detailed step-by-step
+- **[Production Checklist](./docs/PRODUCTION_CHECKLIST.md)** - Ensure everything is ready
+
+### Quick Deploy Commands
+
+```bash
+# Windows
+.\deploy-production.ps1
+
+# Linux/Mac
+chmod +x deploy-production.sh
+./deploy-production.sh
+```
+
+### Production Requirements
+- Node.js 16+ 
+- MongoDB Atlas or hosted MongoDB
+- HTTPS/SSL certificate
+- Domain name configured
 
 ## 🤝 Contributing
 

@@ -5,6 +5,10 @@
 
 const Project = require('../models/Project');
 const Comment = require('../models/Comment');
+const User = require('../models/User');
+const Notification = require('../models/Notification');
+const VerificationRequest = require('../models/VerificationRequest');
+const PlagiarismChecker = require('../services/plagiarismChecker');
 const { asyncHandler } = require('../middleware/validator');
 const { ErrorResponse } = require('../middleware/errorHandler');
 const path = require('path');
@@ -291,6 +295,11 @@ exports.createProject = asyncHandler(async (req, res, next) => {
 
   const project = await Project.create(req.body);
 
+  // Run plagiarism check asynchronously (non-blocking)
+  runPlagiarismCheck(project._id).catch(err => {
+    console.error('Plagiarism check failed:', err);
+  });
+
   res.status(201).json({
     status: 'success',
     message: 'Project created successfully',
@@ -328,6 +337,13 @@ exports.updateProject = asyncHandler(async (req, res, next) => {
       runValidators: true
     }
   );
+
+  // Run plagiarism check asynchronously if content changed
+  if (req.body.title || req.body.description || req.body.abstract || req.body.methodology) {
+    runPlagiarismCheck(project._id).catch(err => {
+      console.error('Plagiarism check failed:', err);
+    });
+  }
 
   res.status(200).json({
     status: 'success',
@@ -491,9 +507,18 @@ exports.uploadAttachment = asyncHandler(async (req, res, next) => {
   }
 
   // Check if user is owner or collaborator
-  const isOwner = project.owner.toString() === req.user.id;
+  const ownerId = (typeof project.owner === 'object' && project.owner._id) 
+    ? project.owner._id.toString() 
+    : project.owner.toString();
+  
+  const isOwner = ownerId === req.user.id;
   const isCollaborator = project.collaborators.some(
-    collab => collab.user.toString() === req.user.id
+    collab => {
+      const collabUserId = (typeof collab.user === 'object' && collab.user._id) 
+        ? collab.user._id.toString() 
+        : collab.user.toString();
+      return collabUserId === req.user.id;
+    }
   );
 
   if (!isOwner && !isCollaborator) {
@@ -544,9 +569,18 @@ exports.deleteAttachment = asyncHandler(async (req, res, next) => {
   }
 
   // Check if user is owner or collaborator
-  const isOwner = project.owner.toString() === req.user.id;
+  const ownerId = (typeof project.owner === 'object' && project.owner._id) 
+    ? project.owner._id.toString() 
+    : project.owner.toString();
+  
+  const isOwner = ownerId === req.user.id;
   const isCollaborator = project.collaborators.some(
-    collab => collab.user.toString() === req.user.id
+    collab => {
+      const collabUserId = (typeof collab.user === 'object' && collab.user._id) 
+        ? collab.user._id.toString() 
+        : collab.user.toString();
+      return collabUserId === req.user.id;
+    }
   );
 
   if (!isOwner && !isCollaborator) {
@@ -576,3 +610,390 @@ exports.deleteAttachment = asyncHandler(async (req, res, next) => {
     data: {}
   });
 });
+
+/**
+ * @desc    Send verification request for a project
+ * @route   POST /api/projects/:id/verification-request
+ * @access  Private (Project Owner only)
+ */
+exports.sendVerificationRequest = asyncHandler(async (req, res, next) => {
+  const { message, professorId } = req.body;
+  const projectId = req.params.id;
+  const userId = req.user._id;
+
+  // Get the project
+  const project = await Project.findById(projectId);
+  if (!project) {
+    return next(new ErrorResponse('Project not found', 404));
+  }
+
+  // Check if user is the project owner
+  // Handle both populated and non-populated owner field
+  const ownerId = (typeof project.owner === 'object' && project.owner._id) 
+    ? project.owner._id.toString() 
+    : project.owner.toString();
+    
+  if (ownerId !== userId.toString()) {
+    return next(new ErrorResponse('Only project owner can request verification', 403));
+  }
+
+  // Check if project is already verified
+  if (project.is_verified) {
+    return next(new ErrorResponse('Project is already verified', 400));
+  }
+
+  // Check if there's already a pending request for this project
+  const existingRequest = await VerificationRequest.findOne({
+    project: projectId,
+    status: 'PENDING'
+  });
+
+  if (existingRequest) {
+    return next(new ErrorResponse('A verification request is already pending for this project', 400));
+  }
+
+  // If professorId is provided, verify the professor exists and is not the requester
+  if (professorId) {
+    // Check if professor is trying to verify their own project
+    if (professorId === userId.toString()) {
+      return next(new ErrorResponse('Professors cannot verify their own projects', 400));
+    }
+    
+    const professor = await User.findById(professorId);
+    if (!professor || professor.designation !== 'Professor') {
+      return next(new ErrorResponse('Invalid professor ID', 400));
+    }
+  }
+
+  // Create verification request
+  const verificationRequest = await VerificationRequest.create({
+    project: projectId,
+    requester: userId,
+    professor: professorId || null,
+    message: message || '',
+    status: 'PENDING'
+  });
+
+  // Populate request data
+  await verificationRequest.populate([
+    { path: 'project', select: 'title description' },
+    { path: 'requester', select: 'firstName lastName email' },
+    { path: 'professor', select: 'firstName lastName email' }
+  ]);
+
+  // Send notification to professor(s)
+  if (professorId) {
+    // Notification to specific professor
+    await Notification.createNotification({
+      recipient: professorId,
+      type: 'VERIFICATION_REQUEST',
+      title: 'New Verification Request',
+      message: `${req.user.firstName} ${req.user.lastName} has requested verification for "${project.title}"`,
+      link: `/verification-requests`,
+      relatedModel: 'VerificationRequest',
+      relatedId: verificationRequest._id,
+      priority: 'high'
+    });
+  } else {
+    // Notification to all professors (except the requester if they are a professor)
+    const professors = await User.find({ 
+      designation: 'Professor',
+      _id: { $ne: userId }
+    });
+    for (const prof of professors) {
+      await Notification.createNotification({
+        recipient: prof._id,
+        type: 'VERIFICATION_REQUEST',
+        title: 'New Verification Request',
+        message: `${req.user.firstName} ${req.user.lastName} has requested verification for "${project.title}"`,
+        link: `/verification-requests`,
+        relatedModel: 'VerificationRequest',
+        relatedId: verificationRequest._id,
+        priority: 'high'
+      });
+    }
+  }
+
+  res.status(201).json({
+    status: 'success',
+    message: 'Verification request sent successfully',
+    data: { request: verificationRequest }
+  });
+});
+
+/**
+ * @desc    Get all verification requests (for professors)
+ * @route   GET /api/verification-requests
+ * @access  Private (Professor only)
+ */
+exports.getVerificationRequests = asyncHandler(async (req, res, next) => {
+  // Check if user is a professor
+  if (req.user.designation !== 'Professor') {
+    return next(new ErrorResponse('Only professors can access verification requests', 403));
+  }
+
+  const { status = 'PENDING' } = req.query;
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = parseInt(req.query.limit, 10) || 20;
+  const skip = (page - 1) * limit;
+
+  // Build query
+  const query = {};
+  if (status) {
+    query.status = status;
+  }
+
+  // Get requests
+  const requests = await VerificationRequest.find(query)
+    .populate('project', 'title description researchArea owner')
+    .populate('requester', 'firstName lastName email institution')
+    .populate('professor', 'firstName lastName email')
+    .populate('processed_by', 'firstName lastName')
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
+  const total = await VerificationRequest.countDocuments(query);
+
+  res.status(200).json({
+    status: 'success',
+    count: requests.length,
+    total,
+    pagination: {
+      page,
+      pages: Math.ceil(total / limit)
+    },
+    data: { requests }
+  });
+});
+
+/**
+ * @desc    Get verification requests for a specific project
+ * @route   GET /api/projects/:id/verification-requests
+ * @access  Private (Project Owner or Professor)
+ */
+exports.getProjectVerificationRequests = asyncHandler(async (req, res, next) => {
+  const projectId = req.params.id;
+
+  // Get the project
+  const project = await Project.findById(projectId);
+  if (!project) {
+    return next(new ErrorResponse('Project not found', 404));
+  }
+
+  // Check if user is the owner or a professor
+  const ownerId = (typeof project.owner === 'object' && project.owner._id) 
+    ? project.owner._id.toString() 
+    : project.owner.toString();
+  
+  const isOwner = ownerId === req.user._id.toString();
+  const isProfessor = req.user.designation === 'Professor';
+
+  if (!isOwner && !isProfessor) {
+    return next(new ErrorResponse('Not authorized to view verification requests for this project', 403));
+  }
+
+  // Get requests for this project
+  const requests = await VerificationRequest.find({ project: projectId })
+    .populate('requester', 'firstName lastName email institution')
+    .populate('professor', 'firstName lastName email')
+    .populate('processed_by', 'firstName lastName')
+    .sort({ createdAt: -1 });
+
+  res.status(200).json({
+    status: 'success',
+    count: requests.length,
+    data: { requests }
+  });
+});
+
+/**
+ * @desc    Approve verification request
+ * @route   POST /api/verification-requests/:id/approve
+ * @access  Private (Professor only)
+ */
+exports.approveVerificationRequest = asyncHandler(async (req, res, next) => {
+  const requestId = req.params.id;
+  const professorId = req.user._id;
+  const { note } = req.body;
+
+  // Check if user is a professor
+  if (req.user.designation !== 'Professor') {
+    return next(new ErrorResponse('Only professors can approve verification requests', 403));
+  }
+
+  // Get the verification request
+  const request = await VerificationRequest.findById(requestId)
+    .populate('project')
+    .populate('requester', 'firstName lastName email');
+
+  if (!request) {
+    return next(new ErrorResponse('Verification request not found', 404));
+  }
+
+  // Check if request can be processed
+  if (!request.canBeProcessed()) {
+    return next(new ErrorResponse('This request has already been processed', 400));
+  }
+
+  // Approve the request
+  await request.approve(professorId, note);
+
+  // Update the project
+  const project = request.project;
+  project.is_verified = true;
+  project.verified_at = new Date();
+  project.verified_by_professor_id = professorId;
+  await project.save();
+
+  // Send notification to project owner
+  await Notification.createNotification({
+    recipient: request.requester._id,
+    type: 'VERIFICATION_APPROVED',
+    title: 'Project Verified!',
+    message: `Your project "${project.title}" has been verified by ${req.user.firstName} ${req.user.lastName}`,
+    link: `/projects/${project._id}`,
+    relatedModel: 'Project',
+    relatedId: project._id,
+    priority: 'high'
+  });
+
+  // Populate updated data
+  await request.populate('processed_by', 'firstName lastName email');
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Project verified successfully',
+    data: { request, project }
+  });
+});
+
+/**
+ * @desc    Reject verification request
+ * @route   POST /api/verification-requests/:id/reject
+ * @access  Private (Professor only)
+ */
+exports.rejectVerificationRequest = asyncHandler(async (req, res, next) => {
+  const requestId = req.params.id;
+  const professorId = req.user._id;
+  const { note } = req.body;
+
+  // Check if user is a professor
+  if (req.user.designation !== 'Professor') {
+    return next(new ErrorResponse('Only professors can reject verification requests', 403));
+  }
+
+  // Get the verification request
+  const request = await VerificationRequest.findById(requestId)
+    .populate('project', 'title')
+    .populate('requester', 'firstName lastName email');
+
+  if (!request) {
+    return next(new ErrorResponse('Verification request not found', 404));
+  }
+
+  // Check if request can be processed
+  if (!request.canBeProcessed()) {
+    return next(new ErrorResponse('This request has already been processed', 400));
+  }
+
+  // Reject the request
+  await request.reject(professorId, note);
+
+  // Send notification to project owner
+  await Notification.createNotification({
+    recipient: request.requester._id,
+    type: 'VERIFICATION_REJECTED',
+    title: 'Verification Request Update',
+    message: `Your verification request for "${request.project.title}" was not approved${note ? ': ' + note : ''}`,
+    link: `/projects/${request.project._id}`,
+    relatedModel: 'Project',
+    relatedId: request.project._id,
+    priority: 'normal'
+  });
+
+  // Populate updated data
+  await request.populate('processed_by', 'firstName lastName email');
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Verification request rejected',
+    data: { request }
+  });
+});
+
+/**
+ * @desc    Get list of professors (for requesting specific professor)
+ * @route   GET /api/professors
+ * @access  Private
+ */
+exports.getProfessors = asyncHandler(async (req, res, next) => {
+  // Exclude current user from the list (professors cannot verify their own projects)
+  const professors = await User.find({ 
+    designation: 'Professor',
+    _id: { $ne: req.user._id }
+  })
+    .select('firstName lastName email institution department researchInterests')
+    .sort('firstName');
+
+  res.status(200).json({
+    status: 'success',
+    count: professors.length,
+    data: { professors }
+  });
+});
+
+/**
+ * Helper function to run plagiarism check asynchronously
+ * @param {String} projectId - ID of the project to check
+ */
+async function runPlagiarismCheck(projectId) {
+  try {
+    // Fetch the project to check
+    const project = await Project.findById(projectId);
+    if (!project) {
+      console.error('Project not found for plagiarism check:', projectId);
+      return;
+    }
+
+    // Fetch all other projects (excluding this one)
+    const existingProjects = await Project.find({
+      _id: { $ne: projectId }
+    }).select('title description abstract methodology keywords');
+
+    // Run plagiarism check with 75% threshold
+    const result = await PlagiarismChecker.checkPlagiarism(
+      project,
+      existingProjects,
+      0.75
+    );
+
+    // Update project with plagiarism check results
+    await Project.findByIdAndUpdate(projectId, {
+      plagiarism_flag: result.plagiarismDetected,
+      plagiarism_score: result.highestScore,
+      matched_project_id: result.matchedProjectId,
+      plagiarism_checked_at: new Date()
+    });
+
+    // If plagiarism detected, notify project owner
+    if (result.plagiarismDetected) {
+      const matchedProject = await Project.findById(result.matchedProjectId).select('title');
+      
+      await Notification.createNotification({
+        recipient: project.owner,
+        type: 'SYSTEM_ANNOUNCEMENT',
+        title: 'Plagiarism Alert',
+        message: `Your project "${project.title}" has been flagged for possible plagiarism (${Math.round(result.highestScore * 100)}% similarity with "${matchedProject?.title || 'another project'}"). Please review.`,
+        link: `/projects/${projectId}`,
+        relatedModel: 'Project',
+        relatedId: projectId,
+        priority: 'high'
+      });
+    }
+
+    console.log(`Plagiarism check completed for project ${projectId}:`, result);
+  } catch (error) {
+    console.error('Error running plagiarism check:', error);
+  }
+}

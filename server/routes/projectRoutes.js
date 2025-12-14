@@ -17,7 +17,13 @@ const {
   addComment,
   getComments,
   uploadAttachment,
-  deleteAttachment
+  deleteAttachment,
+  sendVerificationRequest,
+  getVerificationRequests,
+  getProjectVerificationRequests,
+  approveVerificationRequest,
+  rejectVerificationRequest,
+  getProfessors
 } = require('../controllers/projectController');
 const { protect, optionalAuth } = require('../middleware/auth');
 const { validate } = require('../middleware/validator');
@@ -57,9 +63,109 @@ const router = express.Router();
  */
 router.get('/', optionalAuth, getProjects);
 
+// Verification Routes - Must be before :id routes
+
 /**
  * @swagger
- * /api/projects/my:
+ * /api/projects/verification-requests:
+ *   get:
+ *     summary: Get all verification requests (for professors)
+ *     tags: [Verification]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [PENDING, APPROVED, REJECTED]
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of verification requests
+ */
+router.get('/verification-requests', protect, getVerificationRequests);
+
+/**
+ * @swagger
+ * /api/projects/verification-requests/{id}/approve:
+ *   post:
+ *     summary: Approve a verification request
+ *     tags: [Verification]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               note:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Verification request approved
+ */
+router.post('/verification-requests/:id/approve', protect, approveVerificationRequest);
+
+/**
+ * @swagger
+ * /api/projects/verification-requests/{id}/reject:
+ *   post:
+ *     summary: Reject a verification request
+ *     tags: [Verification]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               note:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Verification request rejected
+ */
+router.post('/verification-requests/:id/reject', protect, rejectVerificationRequest);
+
+/**
+ * @swagger
+ * /api/projects/professors:
+ *   get:
+ *     summary: Get list of professors
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of professors
+ */
+router.get('/professors', protect, getProfessors);
+
+/**
+ * @swagger
+ * /api/projects/{id}:
  *   get:
  *     summary: Get current user's own projects
  *     tags: [Projects]
@@ -300,5 +406,55 @@ router.post('/:id/attachments', protect, upload.single('file'), uploadAttachment
  *         description: Attachment deleted successfully
  */
 router.delete('/:id/attachments/:attachmentId', protect, deleteAttachment);
+
+/**
+ * @swagger
+ * /api/projects/{id}/verification-request:
+ *   post:
+ *     summary: Send verification request for a project
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *               professorId:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Verification request sent successfully
+ */
+router.post('/:id/verification-request', protect, sendVerificationRequest);
+
+/**
+ * @swagger
+ * /api/projects/{id}/verification-requests:
+ *   get:
+ *     summary: Get verification requests for a specific project
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of verification requests for the project
+ */
+router.get('/:id/verification-requests', protect, getProjectVerificationRequests);
 
 module.exports = router;

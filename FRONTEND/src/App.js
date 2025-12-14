@@ -29,6 +29,7 @@ import CreateProject from './pages/CreateProject';
 import EditProject from './pages/EditProject';
 import Collaborations from './pages/Collaborations';
 import SendCollaborationRequest from './pages/SendCollaborationRequest';
+import VerificationRequests from './pages/VerificationRequests';
 import Analytics from './pages/Analytics';
 import Notifications from './pages/Notifications';
 import Events from './pages/Events';
@@ -90,6 +91,11 @@ function App() {
               <Route path="/collaborations" element={
                 <PrivateRoute>
                   <Collaborations />
+                </PrivateRoute>
+              } />
+              <Route path="/verification-requests" element={
+                <PrivateRoute>
+                  <VerificationRequests />
                 </PrivateRoute>
               } />
               <Route path="/analytics" element={

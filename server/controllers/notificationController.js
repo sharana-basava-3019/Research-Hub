@@ -15,7 +15,7 @@ const { ErrorResponse } = require('../middleware/errorHandler');
 exports.getNotifications = asyncHandler(async (req, res, next) => {
   const { isRead, type, priority } = req.query;
   
-  const query = { recipient: req.user.id };
+  const query = { recipient: req.user._id };
   
   if (isRead !== undefined) {
     query.isRead = isRead === 'true';
@@ -33,7 +33,7 @@ exports.getNotifications = asyncHandler(async (req, res, next) => {
     .sort('-createdAt')
     .limit(50);
 
-  const unreadCount = await Notification.getUnreadCount(req.user.id);
+  const unreadCount = await Notification.getUnreadCount(req.user._id);
 
   res.status(200).json({
     status: 'success',
@@ -58,7 +58,7 @@ exports.getNotification = asyncHandler(async (req, res, next) => {
   }
 
   // Check if user is the recipient
-  if (notification.recipient.toString() !== req.user.id) {
+  if (notification.recipient.toString() !== req.user._id.toString()) {
     return next(new ErrorResponse('Not authorized to view this notification', 403));
   }
 
@@ -83,7 +83,7 @@ exports.markAsRead = asyncHandler(async (req, res, next) => {
   }
 
   // Check if user is the recipient
-  if (notification.recipient.toString() !== req.user.id) {
+  if (notification.recipient.toString() !== req.user._id.toString()) {
     return next(new ErrorResponse('Not authorized', 403));
   }
 
@@ -105,7 +105,7 @@ exports.markAsRead = asyncHandler(async (req, res, next) => {
  */
 exports.markAllAsRead = asyncHandler(async (req, res, next) => {
   await Notification.updateMany(
-    { recipient: req.user.id, isRead: false },
+    { recipient: req.user._id, isRead: false },
     { isRead: true }
   );
 
@@ -128,7 +128,7 @@ exports.deleteNotification = asyncHandler(async (req, res, next) => {
   }
 
   // Check if user is the recipient
-  if (notification.recipient.toString() !== req.user.id) {
+  if (notification.recipient.toString() !== req.user._id.toString()) {
     return next(new ErrorResponse('Not authorized', 403));
   }
 
@@ -146,7 +146,7 @@ exports.deleteNotification = asyncHandler(async (req, res, next) => {
  * @access  Private
  */
 exports.getUnreadCount = asyncHandler(async (req, res, next) => {
-  const count = await Notification.getUnreadCount(req.user.id);
+  const count = await Notification.getUnreadCount(req.user._id);
 
   res.status(200).json({
     status: 'success',

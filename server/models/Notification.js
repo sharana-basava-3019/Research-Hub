@@ -23,7 +23,10 @@ const NotificationSchema = new mongoose.Schema({
       'DEADLINE_REMINDER',
       'SYSTEM_ANNOUNCEMENT',
       'NEW_FOLLOWER',
-      'PROJECT_UPDATE'
+      'PROJECT_UPDATE',
+      'VERIFICATION_REQUEST',
+      'VERIFICATION_APPROVED',
+      'VERIFICATION_REJECTED'
     ],
     required: [true, 'Notification type is required']
   },
@@ -44,7 +47,7 @@ const NotificationSchema = new mongoose.Schema({
   },
   relatedModel: {
     type: String,
-    enum: ['Project', 'Collaboration', 'Event', 'Comment', 'User'],
+    enum: ['Project', 'Collaboration', 'Event', 'Comment', 'User', 'VerificationRequest'],
   },
   relatedId: {
     type: mongoose.Schema.Types.ObjectId,

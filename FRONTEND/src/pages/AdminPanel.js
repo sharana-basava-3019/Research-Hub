@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import { toast } from 'react-toastify';
 
 const AdminPanel = () => {
@@ -36,10 +36,7 @@ const AdminPanel = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/users', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/users');
 
       if (response.data.status === 'success') {
         const userData = response.data.data.users;
@@ -55,10 +52,7 @@ const AdminPanel = () => {
 
   const fetchEventRegistrations = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/events/admin/registrations', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/events/admin/registrations');
 
       if (response.data.status === 'success') {
         setEventRegistrations(response.data.data.events);
@@ -91,10 +85,7 @@ const AdminPanel = () => {
     if (!userToDelete) return;
 
     try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/users/${userToDelete._id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/users/${userToDelete._id}`);
 
       toast.success('User deleted successfully');
       setShowDeleteConfirm(false);
@@ -107,11 +98,9 @@ const AdminPanel = () => {
 
   const handleRoleUpdate = async (userId, newRole) => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.put(
-        `http://localhost:5000/api/users/${userId}`,
-        { role: newRole },
-        { headers: { Authorization: `Bearer ${token}` } }
+      await api.put(
+        `/users/${userId}`,
+        { role: newRole }
       );
 
       toast.success('User role updated successfully');
@@ -136,11 +125,9 @@ const AdminPanel = () => {
     }
 
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(
-        'http://localhost:5000/api/auth/register',
-        newUser,
-        { headers: { Authorization: `Bearer ${token}` } }
+      await api.post(
+        '/auth/register',
+        newUser
       );
 
       toast.success('User created successfully');

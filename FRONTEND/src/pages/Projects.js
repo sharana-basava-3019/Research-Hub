@@ -18,6 +18,8 @@ const Projects = () => {
   const [selectedProject, setSelectedProject] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showMyProjects, setShowMyProjects] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(12);
 
   useEffect(() => {
     fetchProjects();
@@ -30,7 +32,14 @@ const Projects = () => {
       // Clear the state after using it
       window.history.replaceState({}, document.title);
     }
-  }, [location.state?.selectedResearchArea]);
+    
+    // Handle search query parameter from URL
+    const searchParams = new URLSearchParams(location.search);
+    const searchQuery = searchParams.get('search');
+    if (searchQuery) {
+      setSearchTerm(searchQuery);
+    }
+  }, [location.state?.selectedResearchArea, location.search]);
 
   const fetchProjects = async () => {
     try {
@@ -149,6 +158,17 @@ const Projects = () => {
     return matchesSearch && matchesStatus && matchesCategory && matchesOwner;
   });
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentProjects = filteredProjects.slice(indexOfFirstItem, indexOfLastItem);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus, filterCategory, showMyProjects]);
+
   const formatDate = (date) => {
     return new Date(date).toLocaleDateString('en-US', {
       month: 'short',
@@ -256,13 +276,30 @@ const Projects = () => {
                   value={filterCategory}
                   onChange={(e) => setFilterCategory(e.target.value)}
                 >
-                  <option value="">All Categories</option>
-                  <option value="Artificial Intelligence">AI</option>
+                  <option value="">All Research Areas</option>
                   <option value="Computer Science">Computer Science</option>
-                  <option value="Environmental Science">Environmental Science</option>
+                  <option value="Artificial Intelligence">Artificial Intelligence</option>
+                  <option value="Machine Learning">Machine Learning</option>
+                  <option value="Data Science">Data Science</option>
+                  <option value="Cybersecurity">Cybersecurity</option>
+                  <option value="Software Engineering">Software Engineering</option>
+                  <option value="Biotechnology">Biotechnology</option>
                   <option value="Biomedical Engineering">Biomedical Engineering</option>
+                  <option value="Environmental Science">Environmental Science</option>
+                  <option value="Climate Change">Climate Change</option>
+                  <option value="Renewable Energy">Renewable Energy</option>
+                  <option value="Physics">Physics</option>
+                  <option value="Chemistry">Chemistry</option>
+                  <option value="Biology">Biology</option>
+                  <option value="Mathematics">Mathematics</option>
+                  <option value="Engineering">Engineering</option>
+                  <option value="Electrical Engineering">Electrical Engineering</option>
+                  <option value="Mechanical Engineering">Mechanical Engineering</option>
+                  <option value="Civil Engineering">Civil Engineering</option>
                   <option value="Marine Biology">Marine Biology</option>
-                  <option value="Electrical Engineering">Engineering</option>
+                  <option value="Neuroscience">Neuroscience</option>
+                  <option value="Psychology">Psychology</option>
+                  <option value="Other">Other</option>
                 </select>
               </div>
             </div>
@@ -286,7 +323,7 @@ const Projects = () => {
           </div>
         ) : (
           <div className="row g-4 mb-5">
-            {filteredProjects.map((project) => (
+            {currentProjects.map((project) => (
               <div key={project._id} className="col-md-6 col-lg-4 mb-4">
                 <div className="card h-100 shadow-sm hover-lift">
                   <div className="card-body d-flex flex-column">
@@ -295,6 +332,18 @@ const Projects = () => {
                       <span className={`badge bg-${getStatusColor(project.status)}`}>
                         {project.status}
                       </span>
+                      {project.is_verified && (
+                        <span className="badge bg-success ms-2">
+                          <i className="bi bi-patch-check-fill me-1"></i>
+                          Verified
+                        </span>
+                      )}
+                      {project.plagiarism_flag && (
+                        <span className="badge bg-danger ms-2" title={`${Math.round(project.plagiarism_score * 100)}% similarity`}>
+                          <i className="bi bi-exclamation-triangle-fill me-1"></i>
+                          Plagiarism Alert
+                        </span>
+                      )}
                     </div>
 
                     {/* Project Title */}
@@ -406,6 +455,7 @@ const Projects = () => {
                         View Details
                         <i className="bi bi-arrow-right ms-2"></i>
                       </Link>
+                      
                       <button
                         className="btn-niceschool-primary btn-sm flex-fill text-center py-2"
                         onClick={() => {
@@ -418,8 +468,8 @@ const Projects = () => {
                         }}
                         title="Send collaboration request"
                       >
-                        <i className="bi bi-handshake me-2"></i>
-                        Collaborate
+                          <i className="bi bi-handshake me-2"></i>
+                          Collaborate
                       </button>
                     </div>
                   </div>
@@ -429,11 +479,57 @@ const Projects = () => {
           </div>
         )}
 
+        {/* Pagination */}
+        {filteredProjects.length > itemsPerPage && (
+          <div className="d-flex justify-content-center align-items-center gap-2 mt-4 mb-4">
+            <button
+              className="btn btn-outline-primary btn-sm"
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+            >
+              <i className="bi bi-chevron-left"></i> Previous
+            </button>
+            
+            <div className="d-flex gap-1">
+              {[...Array(totalPages)].map((_, index) => {
+                const pageNumber = index + 1;
+                // Show first page, last page, current page, and pages around current
+                if (
+                  pageNumber === 1 ||
+                  pageNumber === totalPages ||
+                  (pageNumber >= currentPage - 1 && pageNumber <= currentPage + 1)
+                ) {
+                  return (
+                    <button
+                      key={pageNumber}
+                      className={`btn btn-sm ${currentPage === pageNumber ? 'btn-primary' : 'btn-outline-primary'}`}
+                      onClick={() => setCurrentPage(pageNumber)}
+                    >
+                      {pageNumber}
+                    </button>
+                  );
+                } else if (pageNumber === currentPage - 2 || pageNumber === currentPage + 2) {
+                  return <span key={pageNumber} className="px-2">...</span>;
+                }
+                return null;
+              })}
+            </div>
+
+            <button
+              className="btn btn-outline-primary btn-sm"
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+            >
+              Next <i className="bi bi-chevron-right"></i>
+            </button>
+          </div>
+        )}
+
         {/* Results Count */}
         {filteredProjects.length > 0 && (
           <div className="mt-4 text-center">
             <p className="text-muted">
-              Showing {filteredProjects.length} of {projects.length} projects
+              Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredProjects.length)} of {filteredProjects.length} projects
             </p>
           </div>
         )}

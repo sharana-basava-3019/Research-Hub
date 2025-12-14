@@ -21,7 +21,15 @@ const Profile = () => {
     bio: '',
     profilePicture: '',
     website: '',
-    publications: []
+    publications: [],
+    socialLinks: {
+      twitter: '',
+      linkedin: '',
+      github: '',
+      orcid: '',
+      researchGate: '',
+      googleScholar: ''
+    }
   });
 
   const [newInterest, setNewInterest] = useState('');
@@ -73,7 +81,15 @@ const Profile = () => {
         bio: user.bio || '',
         profilePicture: user.profilePicture || '',
         website: user.website || '',
-        publications: user.publications || []
+        publications: user.publications || [],
+        socialLinks: user.socialLinks || {
+          twitter: '',
+          linkedin: '',
+          github: '',
+          orcid: '',
+          researchGate: '',
+          googleScholar: ''
+        }
       });
     }
   }, [user]);
@@ -421,6 +437,120 @@ const Profile = () => {
                       />
                     </div>
 
+                    {/* Social Links Section */}
+                    <div className="card mb-4 bg-light">
+                      <div className="card-body">
+                        <h5 className="card-title mb-3">
+                          <i className="bi bi-share me-2"></i>
+                          Social & Professional Links
+                        </h5>
+                        <div className="row g-3">
+                          <div className="col-md-6">
+                            <label className="form-label">
+                              <i className="bi bi-twitter text-info me-1"></i>
+                              Twitter
+                            </label>
+                            <input
+                              type="url"
+                              name="socialLinks.twitter"
+                              value={formData.socialLinks.twitter}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                socialLinks: { ...prev.socialLinks, twitter: e.target.value }
+                              }))}
+                              className="form-control"
+                              placeholder="https://twitter.com/username"
+                            />
+                          </div>
+                          <div className="col-md-6">
+                            <label className="form-label">
+                              <i className="bi bi-linkedin text-primary me-1"></i>
+                              LinkedIn
+                            </label>
+                            <input
+                              type="url"
+                              name="socialLinks.linkedin"
+                              value={formData.socialLinks.linkedin}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                socialLinks: { ...prev.socialLinks, linkedin: e.target.value }
+                              }))}
+                              className="form-control"
+                              placeholder="https://linkedin.com/in/username"
+                            />
+                          </div>
+                          <div className="col-md-6">
+                            <label className="form-label">
+                              <i className="bi bi-github me-1"></i>
+                              GitHub
+                            </label>
+                            <input
+                              type="url"
+                              name="socialLinks.github"
+                              value={formData.socialLinks.github}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                socialLinks: { ...prev.socialLinks, github: e.target.value }
+                              }))}
+                              className="form-control"
+                              placeholder="https://github.com/username"
+                            />
+                          </div>
+                          <div className="col-md-6">
+                            <label className="form-label">
+                              <i className="bi bi-mortarboard me-1"></i>
+                              ORCID
+                            </label>
+                            <input
+                              type="url"
+                              name="socialLinks.orcid"
+                              value={formData.socialLinks.orcid}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                socialLinks: { ...prev.socialLinks, orcid: e.target.value }
+                              }))}
+                              className="form-control"
+                              placeholder="https://orcid.org/0000-0000-0000-0000"
+                            />
+                          </div>
+                          <div className="col-md-6">
+                            <label className="form-label">
+                              <i className="bi bi-search me-1"></i>
+                              ResearchGate
+                            </label>
+                            <input
+                              type="url"
+                              name="socialLinks.researchGate"
+                              value={formData.socialLinks.researchGate}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                socialLinks: { ...prev.socialLinks, researchGate: e.target.value }
+                              }))}
+                              className="form-control"
+                              placeholder="https://researchgate.net/profile/username"
+                            />
+                          </div>
+                          <div className="col-md-6">
+                            <label className="form-label">
+                              <i className="bi bi-google me-1"></i>
+                              Google Scholar
+                            </label>
+                            <input
+                              type="url"
+                              name="socialLinks.googleScholar"
+                              value={formData.socialLinks.googleScholar}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                socialLinks: { ...prev.socialLinks, googleScholar: e.target.value }
+                              }))}
+                              className="form-control"
+                              placeholder="https://scholar.google.com/citations?user=ID"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="flex gap-3 mt-6">
                       <button
                         type="submit"
@@ -464,6 +594,84 @@ const Profile = () => {
                         >
                           {user.website}
                         </a>
+                      </div>
+                    )}
+                    
+                    {/* Social & Professional Links */}
+                    {user?.socialLinks && Object.values(user.socialLinks).some(link => link) && (
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-500 mb-2">
+                          <i className="bi bi-share me-1"></i>
+                          Professional Links
+                        </h3>
+                        <div className="d-flex flex-wrap gap-2">
+                          {user.socialLinks.twitter && (
+                            <a
+                              href={user.socialLinks.twitter}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-sm btn-outline-info"
+                              title="Twitter"
+                            >
+                              <i className="bi bi-twitter"></i>
+                            </a>
+                          )}
+                          {user.socialLinks.linkedin && (
+                            <a
+                              href={user.socialLinks.linkedin}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-sm btn-outline-primary"
+                              title="LinkedIn"
+                            >
+                              <i className="bi bi-linkedin"></i>
+                            </a>
+                          )}
+                          {user.socialLinks.github && (
+                            <a
+                              href={user.socialLinks.github}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-sm btn-outline-dark"
+                              title="GitHub"
+                            >
+                              <i className="bi bi-github"></i>
+                            </a>
+                          )}
+                          {user.socialLinks.orcid && (
+                            <a
+                              href={user.socialLinks.orcid}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-sm btn-outline-success"
+                              title="ORCID"
+                            >
+                              <i className="bi bi-mortarboard"></i>
+                            </a>
+                          )}
+                          {user.socialLinks.researchGate && (
+                            <a
+                              href={user.socialLinks.researchGate}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-sm btn-outline-secondary"
+                              title="ResearchGate"
+                            >
+                              <i className="bi bi-search"></i>
+                            </a>
+                          )}
+                          {user.socialLinks.googleScholar && (
+                            <a
+                              href={user.socialLinks.googleScholar}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-sm btn-outline-warning"
+                              title="Google Scholar"
+                            >
+                              <i className="bi bi-google"></i>
+                            </a>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

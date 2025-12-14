@@ -38,7 +38,7 @@ Implemented a unique username system (similar to Instagram's @handle) for collab
 
 ## Frontend Changes
 
-### 1. Send Collaboration Request Page (`client/src/pages/SendCollaborationRequest.js`)
+### 1. Send Collaboration Request Page (`FRONTEND/src/pages/SendCollaborationRequest.js`)
 
 **New State Variables:**
 - `receiverUsername` - The username input value

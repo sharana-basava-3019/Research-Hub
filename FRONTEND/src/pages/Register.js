@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import api from '../services/api';
 import '../styles/NiceSchoolGlobal.css';
 
 const Register = () => {
@@ -57,28 +58,16 @@ const Register = () => {
     setLoading(true);
     
     try {
-      const response = await fetch('http://localhost:5000/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          researchInterests: formData.researchInterests.split(',').map(interest => interest.trim())
-        }),
+      const response = await api.post('/auth/register', {
+        ...formData,
+        researchInterests: formData.researchInterests.split(',').map(interest => interest.trim())
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success('Registration successful! Please login.');
-        navigate('/login');
-      } else {
-        toast.error(data.message || 'Registration failed');
-      }
+      toast.success('Registration successful! Please login.');
+      navigate('/login');
     } catch (error) {
       console.error('Registration error:', error);
-      toast.error('Registration failed. Please try again.');
+      toast.error(error.response?.data?.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }

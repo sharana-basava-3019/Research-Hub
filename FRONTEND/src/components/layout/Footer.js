@@ -20,16 +20,16 @@ const Footer = () => {
               A comprehensive platform for university research collaboration and analytics.
             </p>
             <div className="flex space-x-4 mt-4">
-              <a href="#" className="text-gray-400 hover:text-primary transition-colors">
+              <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-primary transition-colors" aria-label="Facebook">
                 <i className="bi bi-facebook text-xl"></i>
               </a>
-              <a href="#" className="text-gray-400 hover:text-primary transition-colors">
+              <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-primary transition-colors" aria-label="Twitter">
                 <i className="bi bi-twitter text-xl"></i>
               </a>
-              <a href="#" className="text-gray-400 hover:text-primary transition-colors">
+              <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-primary transition-colors" aria-label="LinkedIn">
                 <i className="bi bi-linkedin text-xl"></i>
               </a>
-              <a href="#" className="text-gray-400 hover:text-primary transition-colors">
+              <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-primary transition-colors" aria-label="GitHub">
                 <i className="bi bi-github text-xl"></i>
               </a>
             </div>
@@ -67,24 +67,24 @@ const Footer = () => {
             <h6 className="text-lg font-semibold mb-4 text-white">Resources</h6>
             <ul className="space-y-2">
               <li>
-                <a href="#" className="text-gray-400 hover:text-primary transition-colors">
+                <a href="https://github.com/your-org/research-hub/wiki" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-primary transition-colors">
                   Documentation
                 </a>
               </li>
               <li>
-                <a href="#" className="text-gray-400 hover:text-primary transition-colors">
+                <a href="/api-docs" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-primary transition-colors">
                   API Reference
                 </a>
               </li>
               <li>
-                <a href="#" className="text-gray-400 hover:text-primary transition-colors">
-                  Support
-                </a>
+                <Link to="/events" className="text-gray-400 hover:text-primary transition-colors">
+                  Events
+                </Link>
               </li>
               <li>
-                <a href="#" className="text-gray-400 hover:text-primary transition-colors">
-                  FAQ
-                </a>
+                <Link to="/collaborations" className="text-gray-400 hover:text-primary transition-colors">
+                  Collaborations
+                </Link>
               </li>
             </ul>
           </div>

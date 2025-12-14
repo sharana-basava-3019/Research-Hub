@@ -40,13 +40,13 @@
 - ✅ Toast notifications
 
 **Files Created:**
-- `client/src/App.js` - Main app component
-- `client/src/context/AuthContext.js` - Auth state
-- `client/src/services/api.js` - Axios instance
-- `client/src/components/` - Layout & routing components
-- `client/src/pages/` - 10 page components
-- `client/tailwind.config.js` - Tailwind configuration
-- `client/src/index.css` - Global styles
+- `FRONTEND/src/App.js` - Main app component
+- `FRONTEND/src/context/AuthContext.js` - Auth state
+- `FRONTEND/src/services/api.js` - Axios instance
+- `FRONTEND/src/components/` - Layout & routing components
+- `FRONTEND/src/pages/` - 10 page components
+- `FRONTEND/tailwind.config.js` - Tailwind configuration
+- `FRONTEND/src/index.css` - Global styles
 
 ---
 
@@ -194,7 +194,7 @@ RESEARCH-HUB/
 │   ├── server.js
 │   └── package.json
 │
-├── client/                 # 30+ files
+├── FRONTEND/               # 30+ files
 │   ├── public/
 │   ├── src/
 │   │   ├── components/    # 3 components

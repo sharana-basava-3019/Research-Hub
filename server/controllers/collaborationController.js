@@ -15,7 +15,7 @@ const { ErrorResponse } = require('../middleware/errorHandler');
  * @access  Private
  */
 exports.getCollaborations = asyncHandler(async (req, res, next) => {
-  const { status, type } = req.query;
+  const { status, type, projectId, receiverId } = req.query;
 
   let query = {};
 
@@ -24,13 +24,23 @@ exports.getCollaborations = asyncHandler(async (req, res, next) => {
     query.status = status;
   }
 
+  // Filter by projectId
+  if (projectId) {
+    query.project = projectId;
+  }
+
+  // Filter by receiverId
+  if (receiverId) {
+    query.receiver = receiverId;
+  }
+
   // Filter by type (sent or received)
   if (type === 'sent') {
     query.sender = req.user.id;
   } else if (type === 'received') {
     query.receiver = req.user.id;
-  } else {
-    // Both sent and received
+  } else if (!receiverId) {
+    // Both sent and received (only if receiverId not specified)
     query.$or = [
       { sender: req.user.id },
       { receiver: req.user.id }
@@ -158,7 +168,11 @@ exports.sendCollaborationRequest = asyncHandler(async (req, res, next) => {
     }
     
     // In request mode, the receiver should be the project owner
-    if (project.owner.toString() !== receiver._id.toString()) {
+    const ownerId = (typeof project.owner === 'object' && project.owner._id) 
+      ? project.owner._id.toString() 
+      : project.owner.toString();
+    
+    if (ownerId !== receiver._id.toString()) {
       return next(new ErrorResponse('You can only send collaboration requests to the project owner', 400));
     }
   }

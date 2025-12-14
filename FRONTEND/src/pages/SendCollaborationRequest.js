@@ -198,6 +198,32 @@ const SendCollaborationRequest = () => {
         }
       }
 
+      // Check for duplicate collaboration request
+      try {
+        const existingResponse = await api.get('/collaborations', {
+          params: {
+            projectId: selectedProjectId,
+            receiverId: receiverId
+          }
+        });
+        
+        const existingCollabs = existingResponse.data.data.collaborations || [];
+        const duplicateFound = existingCollabs.some(collab => 
+          (collab.project?._id === selectedProjectId || collab.project === selectedProjectId) &&
+          (collab.receiver?._id === receiverId || collab.receiver === receiverId) &&
+          collab.status === 'Pending'
+        );
+
+        if (duplicateFound) {
+          toast.warning('You have already sent a collaboration request for this project to this user');
+          setLoading(false);
+          return;
+        }
+      } catch (checkError) {
+        console.log('Could not check for duplicates:', checkError);
+        // Continue anyway - backend will handle duplicates
+      }
+
       await api.post('/collaborations', {
         receiverId: receiverId,
         receiverUsername: receiverUsername.replace('@', '').toLowerCase().trim(),

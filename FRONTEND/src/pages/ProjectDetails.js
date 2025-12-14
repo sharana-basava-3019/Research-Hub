@@ -5,6 +5,7 @@ import api from '../services/api';
 import { toast } from 'react-toastify';
 import FileUpload from '../components/FileUpload';
 import FileTreeView from '../components/FileTreeView';
+import { API_BASE_URL } from '../services/api';
 
 const ProjectDetails = () => {
   const { id } = useParams();
@@ -12,6 +13,15 @@ const ProjectDetails = () => {
   const { user } = useContext(AuthContext);
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [previewFile, setPreviewFile] = useState(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState('');
+  const [sendingRequest, setSendingRequest] = useState(false);
+  const [verificationRequests, setVerificationRequests] = useState([]);
+  const [professors, setProfessors] = useState([]);
+  const [selectedProfessor, setSelectedProfessor] = useState('');
+
 
   useEffect(() => {
     fetchProjectDetails();
@@ -24,6 +34,11 @@ const ProjectDetails = () => {
       const response = await api.get(`/projects/${id}`);
       console.log('Project data received:', response.data);
       setProject(response.data.data.project);
+      
+      // Fetch verification requests if user is logged in
+      if (user) {
+        await fetchVerificationRequests();
+      }
     } catch (error) {
       console.error('Error fetching project details:', error);
       toast.error(error.response?.data?.message || 'Failed to load project details');
@@ -55,9 +70,48 @@ const ProjectDetails = () => {
   };
 
   const handleDownload = (attachment) => {
-    const downloadUrl = `http://localhost:5000${attachment.url}`;
+    const downloadUrl = `${API_BASE_URL}${attachment.url}`;
     window.open(downloadUrl, '_blank');
     toast.success(`Downloading: ${attachment.filename}`);
+  };
+
+  const getFileExtension = (filename) => {
+    return filename.split('.').pop().toLowerCase();
+  };
+
+  const handlePreview = (attachment) => {
+    setPreviewFile(attachment);
+    setShowPreviewModal(true);
+  };
+
+  const renderPreview = () => {
+    if (!previewFile) return null;
+
+    const ext = getFileExtension(previewFile.filename);
+    const fileUrl = `${API_BASE_URL}${previewFile.url}`;
+
+    if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
+      return <img src={fileUrl} alt={previewFile.filename} className="w-100" style={{ maxHeight: '70vh', objectFit: 'contain' }} />;
+    } else if (ext === 'pdf') {
+      return (
+        <iframe
+          src={fileUrl}
+          title={previewFile.filename}
+          className="w-100"
+          style={{ height: '70vh', border: 'none' }}
+        />
+      );
+    } else if (['txt', 'md', 'json', 'csv'].includes(ext)) {
+      return (
+        <iframe
+          src={fileUrl}
+          title={previewFile.filename}
+          className="w-100"
+          style={{ height: '70vh', border: '1px solid #dee2e6', borderRadius: '4px' }}
+        />
+      );
+    }
+    return <p className="text-center text-muted py-5">Preview not available for this file type</p>;
   };
 
   const handleDeleteAttachment = async (attachmentId) => {
@@ -79,12 +133,158 @@ const ProjectDetails = () => {
     fetchProjectDetails();
   };
 
+  // Generate activity feed from project data
+  const getActivityFeed = () => {
+    if (!project) return [];
+    
+    const activities = [];
+
+    // Project created
+    activities.push({
+      type: 'created',
+      icon: 'bi-plus-circle',
+      color: 'success',
+      title: 'Project Created',
+      description: `by ${project.owner?.firstName} ${project.owner?.lastName}`,
+      date: project.createdAt
+    });
+
+    // Collaborators joined
+    if (project.collaborators && project.collaborators.length > 0) {
+      project.collaborators.forEach((collab) => {
+        activities.push({
+          type: 'collaborator',
+          icon: 'bi-person-plus',
+          color: 'primary',
+          title: 'Collaborator Joined',
+          description: `${collab.user?.firstName || collab.firstName || 'User'} ${collab.user?.lastName || collab.lastName || ''} joined as ${collab.role || 'Collaborator'}`,
+          date: collab.joinedAt || project.updatedAt
+        });
+      });
+    }
+
+    // Files uploaded
+    if (project.attachments && project.attachments.length > 0) {
+      project.attachments.forEach((file) => {
+        activities.push({
+          type: 'file',
+          icon: 'bi-file-earmark-arrow-up',
+          color: 'info',
+          title: 'File Uploaded',
+          description: file.filename,
+          date: file.uploadedAt || project.updatedAt
+        });
+      });
+    }
+
+    // Publications added
+    if (project.publications && project.publications.length > 0) {
+      project.publications.forEach((pub) => {
+        activities.push({
+          type: 'publication',
+          icon: 'bi-journal-text',
+          color: 'warning',
+          title: 'Publication Added',
+          description: pub.title || 'Research publication',
+          date: pub.publishedDate || project.updatedAt
+        });
+      });
+    }
+
+    // Status changes (if we had history, but we can infer from current status)
+    if (project.status && project.status !== 'Planning') {
+      activities.push({
+        type: 'status',
+        icon: 'bi-arrow-repeat',
+        color: 'secondary',
+        title: 'Status Updated',
+        description: `Project status changed to ${project.status}`,
+        date: project.updatedAt
+      });
+    }
+
+    // Sort by date (most recent first)
+    return activities.sort((a, b) => new Date(b.date) - new Date(a.date));
+  };
+
+  const activityFeed = getActivityFeed();
+
   // Check if user is owner or collaborator
   const isOwner = user && project?.owner?._id === user.id;
   const isCollaborator = user && project?.collaborators?.some(
     collab => collab.user?._id === user.id || collab.user === user.id
   );
   const canUploadFiles = isOwner || isCollaborator;
+
+  // Verification functions
+  const fetchProfessors = async () => {
+    try {
+      const response = await api.get('/projects/professors');
+      setProfessors(response.data.data.professors || []);
+    } catch (error) {
+      console.error('Error fetching professors:', error);
+    }
+  };
+
+  const fetchVerificationRequests = async () => {
+    try {
+      const response = await api.get(`/projects/${id}/verification-requests`);
+      setVerificationRequests(response.data.data.requests || []);
+    } catch (error) {
+      console.error('Error fetching verification requests:', error);
+    }
+  };
+
+  const handleOpenVerificationModal = async () => {
+    try {
+      // Fetch professors for selection
+      await fetchProfessors();
+      
+      // Only fetch existing requests if user is the owner (to avoid 403 errors)
+      if (isOwner) {
+        await fetchVerificationRequests();
+      }
+      
+      // Only show modal after data is loaded
+      setShowVerificationModal(true);
+    } catch (error) {
+      console.error('Error opening verification modal:', error);
+      toast.error('Failed to load verification data');
+    }
+  };
+
+  const handleSendVerificationRequest = async () => {
+    if (!verificationMessage.trim() && !selectedProfessor) {
+      toast.warning('Please add a message or select a professor');
+      return;
+    }
+
+    try {
+      setSendingRequest(true);
+      await api.post(`/projects/${id}/verification-request`, {
+        message: verificationMessage,
+        professorId: selectedProfessor || undefined
+      });
+
+      toast.success('Verification request sent successfully!');
+      setShowVerificationModal(false);
+      setVerificationMessage('');
+      setSelectedProfessor('');
+      
+      // Refresh verification requests
+      await fetchVerificationRequests();
+    } catch (error) {
+      console.error('Error sending verification request:', error);
+      toast.error(error.response?.data?.message || 'Failed to send verification request');
+    } finally {
+      setSendingRequest(false);
+    }
+  };
+
+  // Check if there's a pending verification request
+  const hasPendingRequest = verificationRequests.some(req => req.status === 'PENDING');
+
+
 
   if (loading) {
     return (
@@ -114,13 +314,21 @@ const ProjectDetails = () => {
   return (
     <div className="container section">
       {/* Back Button */}
-      <div className="mb-3">
+      <div className="mb-3 d-flex justify-content-between align-items-center">
         <button 
           className="btn btn-link text-decoration-none p-0"
           onClick={() => navigate('/projects')}
         >
           <i className="bi bi-arrow-left me-2"></i>
           Back to Projects
+        </button>
+        <button
+          className="btn btn-outline-secondary btn-sm"
+          onClick={() => window.print()}
+          title="Print or save as PDF"
+        >
+          <i className="bi bi-printer me-2"></i>
+          Export to PDF
         </button>
       </div>
 
@@ -145,6 +353,18 @@ const ProjectDetails = () => {
             <span className={`badge ${getStatusBadgeClass(project.status)} px-3 py-2`}>
               {project.status}
             </span>
+            {project.is_verified && (
+              <span className="badge bg-success px-3 py-2">
+                <i className="bi bi-patch-check-fill me-1"></i>
+                Verified by Professor
+              </span>
+            )}
+            {project.plagiarism_flag && (
+              <span className="badge bg-danger px-3 py-2" title={`${Math.round(project.plagiarism_score * 100)}% similarity detected`}>
+                <i className="bi bi-exclamation-triangle-fill me-1"></i>
+                Possible Plagiarism ({Math.round(project.plagiarism_score * 100)}%)
+              </span>
+            )}
             {project.researchArea && (
               <span className="badge bg-info px-3 py-2">
                 <i className="bi bi-bookmark me-1"></i>
@@ -159,18 +379,72 @@ const ProjectDetails = () => {
             )}
           </div>
         </div>
-        <div className="col-lg-4 text-lg-end">
+        <div className="col-lg-4 text-lg-end d-flex justify-content-end gap-2">
+          {/* Edit Project Button */}
           {user && (project.owner?._id === user.id || user.role === 'admin') && (
             <button 
               className="btn btn-primary"
-              onClick={() => navigate(`/projects/${id}/edit`)}
+              onClick={() => navigate(`/projects/edit/${id}`)}
             >
               <i className="bi bi-pencil me-2"></i>
               Edit Project
             </button>
           )}
+          
+          {/* Request Verification Button */}
+          {isOwner && !project.is_verified && !hasPendingRequest && (
+            <button 
+              className="btn btn-outline-success"
+              onClick={handleOpenVerificationModal}
+            >
+              <i className="bi bi-send me-2"></i>
+              Request Verification
+            </button>
+          )}
+          
+          {/* Verification Requested Badge */}
+          {isOwner && !project.is_verified && hasPendingRequest && (
+            <span className="badge bg-warning text-dark px-3 py-2 d-flex align-items-center">
+              <i className="bi bi-clock-history me-1"></i>
+              Verification Requested
+            </span>
+          )}
         </div>
       </div>
+
+      {/* Plagiarism Warning Alert */}
+      {project.plagiarism_flag && (
+        <div className="alert alert-danger d-flex align-items-start mb-4" role="alert">
+          <i className="bi bi-exclamation-triangle-fill me-3" style={{ fontSize: '1.5rem' }}></i>
+          <div className="flex-grow-1">
+            <h5 className="alert-heading mb-2">
+              <strong>Plagiarism Detection Alert</strong>
+            </h5>
+            <p className="mb-2">
+              This project has been flagged for possible plagiarism with a similarity score of <strong>{Math.round(project.plagiarism_score * 100)}%</strong>.
+            </p>
+            {project.matched_project_id && (
+              <p className="mb-2">
+                Similar content detected in another project. 
+                {(isOwner || user?.designation === 'Professor') && (
+                  <>
+                    {' '}<a href={`/projects/${project.matched_project_id}`} target="_blank" rel="noopener noreferrer" className="alert-link">
+                      View similar project <i className="bi bi-box-arrow-up-right"></i>
+                    </a>
+                  </>
+                )}
+              </p>
+            )}
+            <hr />
+            <p className="mb-0 small">
+              <i className="bi bi-info-circle me-1"></i>
+              This automated check may produce false positives. 
+              {user?.designation === 'Professor' && ' Please review manually before taking action.'}
+              {isOwner && ' If you believe this is an error, please contact a professor or administrator.'}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="row">
         {/* Main Content */}
@@ -278,6 +552,7 @@ const ProjectDetails = () => {
                 <FileTreeView
                   attachments={project.attachments}
                   onDownload={handleDownload}
+                  onPreview={handlePreview}
                   onDelete={handleDeleteAttachment}
                   canDelete={canUploadFiles}
                 />
@@ -315,6 +590,49 @@ const ProjectDetails = () => {
                       </div>
                     </a>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Activity Feed */}
+          {activityFeed.length > 0 && (
+            <div className="card shadow-sm mb-4">
+              <div className="card-body">
+                <h4 className="card-title mb-3">
+                  <i className="bi bi-clock-history text-primary me-2"></i>
+                  Recent Activity
+                </h4>
+                <div className="activity-timeline">
+                  {activityFeed.slice(0, 10).map((activity, index) => (
+                    <div key={index} className="activity-item d-flex mb-3 pb-3 border-bottom">
+                      <div className="activity-icon me-3">
+                        <div className={`rounded-circle bg-${activity.color} bg-opacity-10 p-2 d-flex align-items-center justify-content-center`} style={{ width: '40px', height: '40px' }}>
+                          <i className={`bi ${activity.icon} text-${activity.color} fs-5`}></i>
+                        </div>
+                      </div>
+                      <div className="activity-content flex-grow-1">
+                        <h6 className="mb-1 fw-semibold">{activity.title}</h6>
+                        <p className="mb-1 text-muted small">{activity.description}</p>
+                        <small className="text-muted">
+                          <i className="bi bi-clock me-1"></i>
+                          {new Date(activity.date).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </small>
+                      </div>
+                    </div>
+                  ))}
+                  {activityFeed.length === 0 && (
+                    <div className="text-center text-muted py-4">
+                      <i className="bi bi-inbox display-6 d-block mb-2"></i>
+                      <p>No activity yet</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -484,6 +802,404 @@ const ProjectDetails = () => {
           </div>
         </div>
       </div>
+
+      {/* File Preview Modal */}
+      {showPreviewModal && previewFile && (
+        <div 
+          style={{ 
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            zIndex: 1050,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+            overflowY: 'auto'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowPreviewModal(false);
+              setPreviewFile(null);
+            }
+          }}
+        >
+          <div 
+            className="modal-dialog modal-xl"
+            style={{ margin: 'auto', maxWidth: '90vw' }}
+          >
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  <i className="bi bi-eye me-2"></i>
+                  {previewFile.filename}
+                </h5>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={() => {
+                    setShowPreviewModal(false);
+                    setPreviewFile(null);
+                  }}
+                ></button>
+              </div>
+              <div className="modal-body p-0">
+                {renderPreview()}
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn btn-primary"
+                  onClick={() => handleDownload(previewFile)}
+                >
+                  <i className="bi bi-download me-2"></i>
+                  Download
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setShowPreviewModal(false);
+                    setPreviewFile(null);
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Verification Request Modal */}
+      {showVerificationModal && (
+        <div 
+          style={{ 
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            zIndex: 1050,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+            overflowY: 'auto'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowVerificationModal(false);
+              setVerificationMessage('');
+              setSelectedProfessor('');
+            }
+          }}
+        >
+          <div 
+            className="modal-dialog"
+            style={{ 
+              margin: 'auto', 
+              maxWidth: '600px',
+              width: '100%'
+            }}
+          >
+            <div 
+              className="modal-content" 
+              style={{
+                background: 'linear-gradient(135deg, #ffffff 0%, #f8fffe 100%)',
+                border: 'none',
+                borderRadius: '16px',
+                boxShadow: '0 10px 40px rgba(8, 145, 94, 0.15), 0 4px 16px rgba(0, 0, 0, 0.1)',
+                overflow: 'hidden'
+              }}
+            >
+              <div 
+                className="modal-header" 
+                style={{
+                  background: 'linear-gradient(135deg, #08915e 0%, #0bc47e 100%)',
+                  border: 'none',
+                  padding: '1.5rem 2rem',
+                  color: '#ffffff'
+                }}
+              >
+                <h5 className="modal-title" style={{ 
+                  fontFamily: "'Raleway', sans-serif",
+                  fontWeight: '600',
+                  fontSize: '1.5rem',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  margin: 0
+                }}>
+                  <i className="bi bi-send-check me-2" style={{ fontSize: '1.75rem' }}></i>
+                  Request Project Verification
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close btn-close-white"
+                  onClick={() => {
+                    setShowVerificationModal(false);
+                    setVerificationMessage('');
+                    setSelectedProfessor('');
+                  }}
+                  style={{
+                    filter: 'brightness(0) invert(1)',
+                    opacity: 0.9
+                  }}
+                ></button>
+              </div>
+              <div className="modal-body" style={{ 
+                padding: '2rem',
+                background: '#ffffff'
+              }}>
+                <div 
+                  className="alert" 
+                  style={{
+                    background: 'linear-gradient(135deg, #e8f5f1 0%, #f0faf7 100%)',
+                    border: '1px solid #0bc47e',
+                    borderRadius: '12px',
+                    padding: '1rem 1.25rem',
+                    marginBottom: '1.5rem',
+                    color: '#2d465e',
+                    display: 'flex',
+                    alignItems: 'flex-start'
+                  }}
+                >
+                  <i className="bi bi-info-circle me-2" style={{ 
+                    fontSize: '1.25rem', 
+                    color: '#08915e',
+                    marginTop: '2px'
+                  }}></i>
+                  <div style={{ fontSize: '0.95rem', lineHeight: '1.6' }}>
+                    Request a professor to verify your project. Verified projects gain more visibility and credibility.
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <label 
+                    htmlFor="professorSelect" 
+                    className="form-label" 
+                    style={{
+                      fontFamily: "'Poppins', sans-serif",
+                      fontSize: '0.95rem',
+                      fontWeight: '500',
+                      color: '#2d465e',
+                      marginBottom: '0.5rem'
+                    }}
+                  >
+                    Select Professor <span style={{ 
+                      color: '#6c757d', 
+                      fontWeight: '400',
+                      fontSize: '0.9rem'
+                    }}>(Optional)</span>
+                  </label>
+                  <select
+                    id="professorSelect"
+                    className="form-select"
+                    value={selectedProfessor}
+                    onChange={(e) => setSelectedProfessor(e.target.value)}
+                    style={{
+                      padding: '0.75rem 1rem',
+                      borderRadius: '10px',
+                      border: '2px solid #e0e8e5',
+                      fontSize: '1rem',
+                      transition: 'all 0.3s ease',
+                      background: '#f8fffe'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = '#08915e'}
+                    onBlur={(e) => e.target.style.borderColor = '#e0e8e5'}
+                  >
+                    <option value="">Any Professor</option>
+                    {professors.map(prof => (
+                      <option key={prof._id} value={prof._id}>
+                        {prof.firstName} {prof.lastName} - {prof.institution}
+                      </option>
+                    ))}
+                  </select>
+                  <div 
+                    className="form-text" 
+                    style={{ 
+                      color: '#6c757d', 
+                      fontSize: '0.875rem',
+                      marginTop: '0.5rem'
+                    }}
+                  >
+                    Leave empty to allow any professor to verify your project
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <label 
+                    htmlFor="verificationMessage" 
+                    className="form-label"
+                    style={{
+                      fontFamily: "'Poppins', sans-serif",
+                      fontSize: '0.95rem',
+                      fontWeight: '500',
+                      color: '#2d465e',
+                      marginBottom: '0.5rem'
+                    }}
+                  >
+                    Message to Professor
+                  </label>
+                  <textarea
+                    id="verificationMessage"
+                    className="form-control"
+                    rows="4"
+                    placeholder="Explain why your project should be verified..."
+                    value={verificationMessage}
+                    onChange={(e) => setVerificationMessage(e.target.value)}
+                    maxLength="500"
+                    style={{
+                      padding: '0.75rem 1rem',
+                      borderRadius: '10px',
+                      border: '2px solid #e0e8e5',
+                      fontSize: '1rem',
+                      transition: 'all 0.3s ease',
+                      background: '#f8fffe',
+                      resize: 'vertical'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = '#08915e'}
+                    onBlur={(e) => e.target.style.borderColor = '#e0e8e5'}
+                  ></textarea>
+                  <div 
+                    className="form-text" 
+                    style={{ 
+                      color: '#6c757d', 
+                      fontSize: '0.875rem',
+                      marginTop: '0.5rem'
+                    }}
+                  >
+                    {verificationMessage.length}/500 characters
+                  </div>
+                </div>
+
+                {verificationRequests.length > 0 && (
+                  <div className="mb-3">
+                    <h6 style={{
+                      fontFamily: "'Raleway', sans-serif",
+                      fontWeight: '600',
+                      color: '#2d465e',
+                      fontSize: '1rem',
+                      marginBottom: '0.75rem'
+                    }}>Previous Requests:</h6>
+                    <div className="list-group" style={{ gap: '0.5rem' }}>
+                      {verificationRequests.slice(0, 3).map(req => (
+                        <div 
+                          key={req._id} 
+                          className="list-group-item"
+                          style={{
+                            border: '1px solid #e0e8e5',
+                            borderRadius: '10px',
+                            padding: '0.75rem 1rem',
+                            background: '#f8fffe'
+                          }}
+                        >
+                          <div className="d-flex justify-content-between align-items-center">
+                            <div>
+                              <span 
+                                className={`badge ${req.status === 'PENDING' ? 'bg-warning' : req.status === 'APPROVED' ? 'bg-success' : 'bg-danger'}`}
+                                style={{
+                                  padding: '0.4rem 0.75rem',
+                                  borderRadius: '6px',
+                                  fontSize: '0.8rem'
+                                }}
+                              >
+                                {req.status}
+                              </span>
+                              <small className="ms-2 text-muted">
+                                {new Date(req.createdAt).toLocaleDateString()}
+                              </small>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div 
+                className="modal-footer" 
+                style={{
+                  background: 'linear-gradient(135deg, #f8fffe 0%, #f1f8f5 100%)',
+                  border: 'none',
+                  padding: '1.25rem 2rem',
+                  gap: '0.75rem'
+                }}
+              >
+                <button
+                  className="btn"
+                  onClick={() => {
+                    setShowVerificationModal(false);
+                    setVerificationMessage('');
+                    setSelectedProfessor('');
+                  }}
+                  disabled={sendingRequest}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '10px',
+                    border: '2px solid #dee2e6',
+                    background: '#ffffff',
+                    color: '#6c757d',
+                    fontWeight: '500',
+                    fontFamily: "'Poppins', sans-serif",
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = '#f8f9fa';
+                    e.target.style.borderColor = '#adb5bd';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = '#ffffff';
+                    e.target.style.borderColor = '#dee2e6';
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn"
+                  onClick={handleSendVerificationRequest}
+                  disabled={sendingRequest}
+                  style={{
+                    padding: '0.75rem 2rem',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #08915e 0%, #0bc47e 100%)',
+                    color: '#ffffff',
+                    fontWeight: '500',
+                    fontFamily: "'Poppins', sans-serif",
+                    transition: 'all 0.3s ease',
+                    boxShadow: '0 4px 12px rgba(8, 145, 94, 0.3)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'translateY(-2px)';
+                    e.target.style.boxShadow = '0 6px 16px rgba(8, 145, 94, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = '0 4px 12px rgba(8, 145, 94, 0.3)';
+                  }}
+                >
+                  {sendingRequest ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2"></span>
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-send me-2"></i>
+                      Send Request
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

@@ -149,7 +149,43 @@ const ProjectSchema = new mongoose.Schema({
   tags: [{
     type: String,
     trim: true
-  }]
+  }],
+
+  // Professor Verification
+  is_verified: {
+    type: Boolean,
+    default: false
+  },
+  verified_at: {
+    type: Date,
+    default: null
+  },
+  verified_by_professor_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+
+  // Plagiarism Detection
+  plagiarism_flag: {
+    type: Boolean,
+    default: false
+  },
+  plagiarism_score: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 1
+  },
+  matched_project_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Project',
+    default: null
+  },
+  plagiarism_checked_at: {
+    type: Date,
+    default: null
+  }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -164,6 +200,13 @@ ProjectSchema.virtual('comments', {
   justOne: false
 });
 
+ProjectSchema.virtual('verified_by_professor', {
+  ref: 'User',
+  localField: 'verified_by_professor_id',
+  foreignField: '_id',
+  justOne: true
+});
+
 ProjectSchema.virtual('collaborationRequests', {
   ref: 'Collaboration',
   localField: '_id',
@@ -171,14 +214,21 @@ ProjectSchema.virtual('collaborationRequests', {
   justOne: false
 });
 
+// Virtual field to populate professor details for verification
 ProjectSchema.methods.isOwner = function(userId) {
-  return this.owner.toString() === userId.toString();
+  const ownerId = (typeof this.owner === 'object' && this.owner._id) 
+    ? this.owner._id.toString() 
+    : this.owner.toString();
+  return ownerId === userId.toString();
 };
 
 ProjectSchema.methods.isCollaborator = function(userId) {
-  return this.collaborators.some(
-    collab => collab.user.toString() === userId.toString()
-  );
+  return this.collaborators.some(collab => {
+    const collabUserId = (typeof collab.user === 'object' && collab.user._id) 
+      ? collab.user._id.toString() 
+      : collab.user.toString();
+    return collabUserId === userId.toString();
+  });
 };
 
 ProjectSchema.methods.incrementViews = async function() {

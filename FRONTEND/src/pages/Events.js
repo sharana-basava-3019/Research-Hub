@@ -13,6 +13,7 @@ const Events = () => {
   const [filter, setFilter] = useState('upcoming');
   const [category, setCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('date'); // date, title, capacity
 
   const categories = [
     'all',
@@ -26,6 +27,7 @@ const Events = () => {
     if (user) {
       fetchMyRegistrations();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, category]);
 
   const fetchEvents = async () => {
@@ -76,6 +78,13 @@ const Events = () => {
       return;
     }
 
+    // Find the event to check capacity
+    const event = events.find(e => e._id === eventId);
+    if (event && event.capacity && event.registrationCount >= event.capacity) {
+      toast.warning('Sorry, this event is already full');
+      return;
+    }
+
     try {
       await api.post(`/events/${eventId}/register`);
       toast.success('Successfully registered for event!');
@@ -103,14 +112,7 @@ const Events = () => {
     return myRegistrations.includes(eventId);
   };
 
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
+
 
   const formatTime = (date) => {
     return new Date(date).toLocaleTimeString('en-US', {
@@ -204,7 +206,7 @@ const Events = () => {
             </div>
 
             {/* Category Filter */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 mb-3">
               {categories.map((cat) => (
                 <button
                   key={cat}
@@ -219,18 +221,66 @@ const Events = () => {
                 </button>
               ))}
             </div>
+
+            {/* Sort Dropdown */}
+            <div className="d-flex align-items-center gap-2">
+              <label className="text-muted mb-0">
+                <i className="bi bi-sort-down me-1"></i>
+                Sort by:
+              </label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="form-select form-select-sm"
+                style={{ width: 'auto' }}
+              >
+                <option value="date">Date (Earliest First)</option>
+                <option value="date-desc">Date (Latest First)</option>
+                <option value="title">Title (A-Z)</option>
+                <option value="capacity">Available Spots</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        {/* Events Grid */}
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="spinner mx-auto"></div>
-            <p className="text-gray-600 mt-4">Loading events...</p>
-          </div>
-        ) : events.length > 0 ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {events.map((event) => (
+        {/* Sort and filter events */}
+        {(() => {
+          let sortedEvents = [...events];
+          
+          switch (sortBy) {
+            case 'date':
+              sortedEvents.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+              break;
+            case 'date-desc':
+              sortedEvents.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+              break;
+            case 'title':
+              sortedEvents.sort((a, b) => a.title.localeCompare(b.title));
+              break;
+            case 'capacity':
+              sortedEvents.sort((a, b) => {
+                const aAvailable = (a.capacity || 0) - (a.registrationCount || 0);
+                const bAvailable = (b.capacity || 0) - (b.registrationCount || 0);
+                return bAvailable - aAvailable;
+              });
+              break;
+            default:
+              break;
+          }
+          
+          const eventsToDisplay = sortedEvents;
+          
+          return (
+            <>
+              {/* Events Grid */}
+              {loading ? (
+                <div className="text-center py-12">
+                  <div className="spinner mx-auto"></div>
+                  <p className="text-gray-600 mt-4">Loading events...</p>
+                </div>
+              ) : eventsToDisplay.length > 0 ? (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {eventsToDisplay.map((event) => (
               <div key={event._id} className="card hover-lift">
                 {/* Event Image/Banner */}
                 <div className="relative">
@@ -347,6 +397,9 @@ const Events = () => {
             </div>
           </div>
         )}
+      </>
+    );
+  })()}
       </div>
     </div>
   );

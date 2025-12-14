@@ -194,13 +194,27 @@ const Dashboard = () => {
                       to={`/projects/${project._id}`}
                       className="block p-4 border border-gray-200 rounded-card hover:border-primary transition-colors"
                     >
-                      <div className="flex justify-between items-start mb-2">
+                      <div className="flex justify-content-between items-start mb-2 gap-2">
                         <h3 className="font-semibold text-dark hover:text-primary">
                           {project.title}
                         </h3>
-                        <span className={`badge badge-${getStatusColor(project.status)}`}>
-                          {project.status}
-                        </span>
+                        <div className="d-flex gap-2 flex-shrink-0">
+                          {project.is_verified && (
+                            <span className="badge bg-success" style={{ fontSize: '0.75rem' }}>
+                              <i className="bi bi-patch-check-fill me-1"></i>
+                              Verified
+                            </span>
+                          )}
+                          {project.plagiarism_flag && (
+                            <span className="badge bg-danger" style={{ fontSize: '0.75rem' }} title={`${Math.round(project.plagiarism_score * 100)}% similarity`}>
+                              <i className="bi bi-exclamation-triangle-fill me-1"></i>
+                              Plagiarism
+                            </span>
+                          )}
+                          <span className={`badge badge-${getStatusColor(project.status)}`}>
+                            {project.status}
+                          </span>
+                        </div>
                       </div>
                       <p className="text-sm text-gray-600 mb-2 line-clamp-2">
                         {project.description}

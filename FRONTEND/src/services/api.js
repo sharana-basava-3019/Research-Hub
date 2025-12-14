@@ -5,6 +5,9 @@
 
 import axios from 'axios';
 
+// Export base URL for direct file downloads
+export const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
+
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
   headers: {

@@ -85,7 +85,7 @@ const Home = () => {
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery) {
-      window.location.href = `/login?search=${encodeURIComponent(searchQuery)}`;
+      navigate(`/projects?search=${encodeURIComponent(searchQuery)}`);
     }
   };
 
@@ -346,7 +346,15 @@ const Home = () => {
                 <div key={project._id} className="col-md-6 col-lg-4" data-aos="zoom-in" data-aos-delay={index * 100}>
                   <div className="project-card-niceschool">
                     <div className="card-body">
-                      <span className="badge mb-3">{project.researchArea || 'Research'}</span>
+                      <div className="d-flex flex-wrap gap-2 mb-3">
+                        <span className="badge">{project.researchArea || 'Research'}</span>
+                        {project.is_verified && (
+                          <span className="badge bg-success">
+                            <i className="bi bi-patch-check-fill me-1"></i>
+                            Verified
+                          </span>
+                        )}
+                      </div>
                       <h5>{project.title}</h5>
                       <p className="text-muted mb-3">
                         {project.description?.substring(0, 120)}

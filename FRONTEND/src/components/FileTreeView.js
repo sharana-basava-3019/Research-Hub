@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 
-const FileTreeView = ({ attachments, onDownload, onDelete, canDelete }) => {
+const FileTreeView = ({ attachments, onDownload, onDelete, onPreview, canDelete }) => {
   const [expandedFolders, setExpandedFolders] = useState(new Set(['root']));
 
   // Build tree structure from flat file list
@@ -89,6 +89,12 @@ const FileTreeView = ({ attachments, onDownload, onDelete, canDelete }) => {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
+  const isPreviewable = (filename) => {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    const previewableTypes = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'txt', 'md', 'json', 'csv'];
+    return previewableTypes.includes(ext);
+  };
+
   const getFileIcon = (filename) => {
     const ext = filename.split('.').pop()?.toLowerCase();
     const iconMap = {
@@ -168,6 +174,15 @@ const FileTreeView = ({ attachments, onDownload, onDelete, canDelete }) => {
                   </div>
                 </div>
                 <div className="d-flex gap-1 ms-2">
+                  {onPreview && isPreviewable(file.name) && (
+                    <button
+                      className="btn btn-sm btn-outline-info"
+                      onClick={() => onPreview(file)}
+                      title="Preview"
+                    >
+                      <i className="bi bi-eye"></i>
+                    </button>
+                  )}
                   <button
                     className="btn btn-sm btn-outline-primary"
                     onClick={() => onDownload(file)}
@@ -196,11 +211,22 @@ const FileTreeView = ({ attachments, onDownload, onDelete, canDelete }) => {
   const totalFiles = attachments.length;
   const totalSize = attachments.reduce((sum, file) => sum + (file.fileSize || 0), 0);
 
+  // Check if any folders are expanded (beyond just root)
+  const hasExpandedFolders = expandedFolders.size > 1;
+
+  const toggleAllFolders = () => {
+    if (hasExpandedFolders) {
+      collapseAll();
+    } else {
+      expandAll();
+    }
+  };
+
   return (
     <div>
       {/* Toolbar */}
-      <div className="d-flex justify-content-between align-items-center mb-3 p-2 bg-light rounded">
-        <div className="d-flex align-items-center gap-3">
+      <div className="d-flex flex-column mb-3 p-2 bg-light rounded">
+        <div className="d-flex align-items-center gap-3 mb-2">
           <small className="text-muted">
             <i className="bi bi-files me-1"></i>
             {totalFiles} files
@@ -210,22 +236,14 @@ const FileTreeView = ({ attachments, onDownload, onDelete, canDelete }) => {
             {formatFileSize(totalSize)} total
           </small>
         </div>
-        <div className="btn-group btn-group-sm">
-          <button
-            className="btn btn-outline-secondary"
-            onClick={expandAll}
-            title="Expand All"
-          >
-            <i className="bi bi-arrows-expand"></i>
-          </button>
-          <button
-            className="btn btn-outline-secondary"
-            onClick={collapseAll}
-            title="Collapse All"
-          >
-            <i className="bi bi-arrows-collapse"></i>
-          </button>
-        </div>
+        <button
+          className="btn btn-sm btn-outline-secondary"
+          onClick={toggleAllFolders}
+          title={hasExpandedFolders ? "Collapse All" : "Expand All"}
+        >
+          <i className={`bi bi-arrows-${hasExpandedFolders ? 'collapse' : 'expand'} me-1`}></i>
+          {hasExpandedFolders ? 'Collapse All' : 'Expand All'}
+        </button>
       </div>
 
       {/* File Tree */}

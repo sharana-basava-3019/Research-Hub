@@ -1,14 +1,11 @@
-/**
- * RESEARCH-HUB Server Entry Point
- * Main server configuration and startup
- */
-
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const mongoSanitize = require('express-mongo-sanitize');
+const hpp = require('hpp');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsDoc = require('swagger-jsdoc');
 const connectDB = require('./config/database');
@@ -24,19 +21,45 @@ connectDB();
 const app = express();
 
 // Security Middleware
-app.use(helmet()); // Set security headers
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+})); // Set security headers
 
 // CORS Configuration
 const corsOptions = {
-  origin: process.env.CORS_ORIGINS?.split(',') || 'http://localhost:3000',
+  origin: function (origin, callback) {
+    const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'];
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 };
 app.use(cors(corsOptions));
 
 // Body Parser Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Data Sanitization against NoSQL Injection
+app.use(mongoSanitize());
+
+// Prevent HTTP Parameter Pollution
+app.use(hpp());
 
 // Static file serving for uploads
 app.use('/uploads', express.static('uploads'));
@@ -142,6 +165,25 @@ const server = app.listen(PORT, () => {
   console.log(`📖 API Documentation: http://localhost:${PORT}/api-docs`);
   console.log(`🏥 Health Check: http://localhost:${PORT}/health\n`);
 });
+
+// Initialize Socket.io for real-time features
+try {
+  const { Server } = require('socket.io');
+  const io = new Server(server, {
+    cors: {
+      origin: (process.env.CORS_ORIGINS && process.env.CORS_ORIGINS.split(',')) || ['http://localhost:3000'],
+      methods: ['GET', 'POST'],
+      credentials: true
+    }
+  });
+
+  // Make io available to routes/controllers via app.get('io')
+  app.set('io', io);
+
+  console.log('✅ Socket.io initialized');
+} catch (err) {
+  console.warn('Socket.io could not be initialized:', err.message);
+}
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {

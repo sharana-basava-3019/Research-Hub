@@ -33,7 +33,10 @@ const Settings = () => {
     collaborationRequests: user?.notificationPrefs?.collaborationRequests !== false,
     projectUpdates: user?.notificationPrefs?.projectUpdates !== false,
     eventReminders: user?.notificationPrefs?.eventReminders !== false,
-    weeklyDigest: user?.notificationPrefs?.weeklyDigest || false
+    weeklyDigest: user?.notificationPrefs?.weeklyDigest || false,
+    comments: user?.notificationPrefs?.comments !== false,
+    mentions: user?.notificationPrefs?.mentions !== false,
+    newFollowers: user?.notificationPrefs?.newFollowers !== false
   });
 
   const handlePasswordChange = async (e) => {
@@ -476,7 +479,7 @@ const Settings = () => {
                     </label>
                   </div>
 
-                  <div className="flex items-center justify-between py-3">
+                  <div className="flex items-center justify-between py-3 border-b">
                     <div>
                       <h4 className="font-semibold">Weekly Digest</h4>
                       <p className="text-sm text-gray-600">Get a weekly summary of platform activity</p>
@@ -489,6 +492,69 @@ const Settings = () => {
                           setNotificationPrefs({
                             ...notificationPrefs,
                             weeklyDigest: e.target.checked
+                          })
+                        }
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between py-3 border-b">
+                    <div>
+                      <h4 className="font-semibold">Comments & Replies</h4>
+                      <p className="text-sm text-gray-600">When someone comments on your projects</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={notificationPrefs.comments}
+                        onChange={(e) =>
+                          setNotificationPrefs({
+                            ...notificationPrefs,
+                            comments: e.target.checked
+                          })
+                        }
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between py-3 border-b">
+                    <div>
+                      <h4 className="font-semibold">Mentions</h4>
+                      <p className="text-sm text-gray-600">When someone mentions you in a post or comment</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={notificationPrefs.mentions}
+                        onChange={(e) =>
+                          setNotificationPrefs({
+                            ...notificationPrefs,
+                            mentions: e.target.checked
+                          })
+                        }
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between py-3">
+                    <div>
+                      <h4 className="font-semibold">New Followers</h4>
+                      <p className="text-sm text-gray-600">When someone starts following your research</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={notificationPrefs.newFollowers}
+                        onChange={(e) =>
+                          setNotificationPrefs({
+                            ...notificationPrefs,
+                            newFollowers: e.target.checked
                           })
                         }
                         className="sr-only peer"

@@ -10,6 +10,7 @@ const AnalyticsData = require('../models/AnalyticsData');
 const { asyncHandler } = require('../middleware/validator');
 const { ErrorResponse } = require('../middleware/errorHandler');
 
+// Python Analytics Service URL (with automatic fallback to JS implementation if unavailable)
 const ANALYTICS_API_URL = process.env.ANALYTICS_API_URL || 'http://localhost:8000';
 
 /**
@@ -284,29 +285,138 @@ exports.getDashboard = asyncHandler(async (req, res, next) => {
 });
 
 /**
+ * Helper function: Calculate match score between two users
+ * Score ranges from 0 to 1 based on multiple factors
+ */
+function calculateMatchScore(currentUser, targetUser) {
+  let score = 0;
+  let factors = 0;
+
+  // Factor 1: Research Interest Overlap (40% weight)
+  if (currentUser.researchInterests && currentUser.researchInterests.length > 0 &&
+      targetUser.researchInterests && targetUser.researchInterests.length > 0) {
+    const commonInterests = currentUser.researchInterests.filter(
+      interest => targetUser.researchInterests.includes(interest)
+    );
+    const totalInterests = new Set([
+      ...currentUser.researchInterests,
+      ...targetUser.researchInterests
+    ]).size;
+    
+    const interestScore = commonInterests.length / Math.max(currentUser.researchInterests.length, 1);
+    score += interestScore * 0.4;
+    factors++;
+  }
+
+  // Factor 2: Institution Match (20% weight)
+  if (currentUser.institution && targetUser.institution) {
+    if (currentUser.institution.toLowerCase() === targetUser.institution.toLowerCase()) {
+      score += 0.2;
+    }
+    factors++;
+  }
+
+  // Factor 3: Department Match (15% weight)
+  if (currentUser.department && targetUser.department) {
+    if (currentUser.department.toLowerCase() === targetUser.department.toLowerCase()) {
+      score += 0.15;
+    }
+    factors++;
+  }
+
+  // Factor 4: Designation Compatibility (15% weight)
+  if (currentUser.designation && targetUser.designation) {
+    const seniorRoles = ['Professor', 'Associate Professor', 'Assistant Professor', 'Post-Doc'];
+    const isCurrentSenior = seniorRoles.includes(currentUser.designation);
+    const isTargetSenior = seniorRoles.includes(targetUser.designation);
+    
+    // Complementary roles score higher
+    if (isCurrentSenior !== isTargetSenior) {
+      score += 0.15;
+    } else if (currentUser.designation === targetUser.designation) {
+      score += 0.1; // Same level is good but not ideal
+    }
+    factors++;
+  }
+
+  // Factor 5: Activity Level (10% weight)
+  // Users with publications or active projects score higher
+  if (targetUser.publications && targetUser.publications.length > 0) {
+    score += Math.min(targetUser.publications.length * 0.02, 0.1);
+    factors++;
+  }
+
+  // Normalize score if not all factors were considered
+  if (factors === 0) return 0.5; // Default if no data available
+  
+  return Math.min(Math.max(score, 0), 1); // Ensure score is between 0 and 1
+}
+
+/**
  * Helper function: Get fallback recommendations (similarity-based)
  */
 async function getFallbackRecommendations(userId) {
-  const user = await User.findById(userId).select('researchInterests');
+  const user = await User.findById(userId).select('firstName lastName institution department designation researchInterests publications');
   
   // Find users with similar research interests
-  const recommendations = await User.find({
+  const candidates = await User.find({
     _id: { $ne: userId },
     researchInterests: { $in: user.researchInterests }
   })
-    .select('firstName lastName institution researchInterests profilePicture')
-    .limit(10);
+    .select('firstName lastName institution department designation researchInterests publications profilePicture')
+    .limit(50); // Get more candidates for better scoring
+
+  // Calculate match scores for each candidate
+  const recommendations = candidates.map(candidate => {
+    const matchScore = calculateMatchScore(user, candidate);
+    const matchingInterests = candidate.researchInterests.filter(
+      interest => user.researchInterests.includes(interest)
+    );
+
+    return {
+      user: candidate,
+      matchScore: Math.round(matchScore * 100) / 100, // Round to 2 decimal places
+      matchingInterests,
+      matchReasons: getMatchReasons(user, candidate, matchingInterests)
+    };
+  });
+
+  // Sort by match score and take top 10
+  recommendations.sort((a, b) => b.matchScore - a.matchScore);
+  const topRecommendations = recommendations.slice(0, 10);
 
   return {
-    recommendations: recommendations.map(rec => ({
-      user: rec,
-      matchScore: 0.5, // Placeholder score
-      matchingInterests: rec.researchInterests.filter(
-        interest => user.researchInterests.includes(interest)
-      )
-    })),
-    method: 'fallback-similarity'
+    recommendations: topRecommendations,
+    method: 'fallback-similarity',
+    totalCandidates: candidates.length
   };
+}
+
+/**
+ * Helper function: Generate human-readable match reasons
+ */
+function getMatchReasons(currentUser, targetUser, matchingInterests) {
+  const reasons = [];
+
+  if (matchingInterests.length > 0) {
+    reasons.push(`${matchingInterests.length} shared research interest${matchingInterests.length > 1 ? 's' : ''}`);
+  }
+
+  if (currentUser.institution && targetUser.institution &&
+      currentUser.institution.toLowerCase() === targetUser.institution.toLowerCase()) {
+    reasons.push('Same institution');
+  }
+
+  if (currentUser.department && targetUser.department &&
+      currentUser.department.toLowerCase() === targetUser.department.toLowerCase()) {
+    reasons.push('Same department');
+  }
+
+  if (targetUser.publications && targetUser.publications.length > 0) {
+    reasons.push(`${targetUser.publications.length} publication${targetUser.publications.length > 1 ? 's' : ''}`);
+  }
+
+  return reasons;
 }
 
 /**

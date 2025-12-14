@@ -19,6 +19,7 @@ const Collaborations = () => {
     if (user) {
       fetchCollaborations();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, filterStatus, user]);
 
   const fetchCollaborations = async () => {
@@ -411,6 +412,26 @@ const Collaborations = () => {
                           <span className={`badge ${getStatusBadgeClass(collab.status)} mt-1`}>
                             {collab.status}
                           </span>
+                          
+                          {/* Progress Indicator for Accepted Collaborations */}
+                          {collab.status === 'Accepted' && (
+                            <div className="mt-2">
+                              <small className="text-muted d-block mb-1">
+                                <i className="bi bi-check-circle-fill text-success me-1"></i>
+                                Active Collaboration
+                              </small>
+                              <div className="progress" style={{ height: '6px' }}>
+                                <div
+                                  className="progress-bar bg-success"
+                                  role="progressbar"
+                                  style={{ width: '100%' }}
+                                  aria-valuenow="100"
+                                  aria-valuemin="0"
+                                  aria-valuemax="100"
+                                ></div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -434,6 +455,67 @@ const Collaborations = () => {
                         <strong className="text-muted small">Message:</strong>
                         <p className="mb-0 mt-1 text-muted small">"{collab.message}"</p>
                       </div>
+                      
+                      {/* Collaboration Timeline/Stages */}
+                      {collab.status === 'Accepted' && (
+                        <div className="mt-3 mb-2">
+                          <div className="d-flex align-items-center justify-content-between position-relative" style={{ fontSize: '0.75rem' }}>
+                            <div className="position-absolute w-100" style={{ height: '2px', backgroundColor: '#28a745', top: '10px', zIndex: 0 }}></div>
+                            
+                            <div className="d-flex flex-column align-items-center position-relative" style={{ zIndex: 1 }}>
+                              <div className="rounded-circle bg-success d-flex align-items-center justify-content-center text-white" style={{ width: '20px', height: '20px' }}>
+                                <i className="bi bi-check" style={{ fontSize: '12px' }}></i>
+                              </div>
+                              <span className="mt-1 text-success fw-semibold">Requested</span>
+                            </div>
+                            
+                            <div className="d-flex flex-column align-items-center position-relative" style={{ zIndex: 1 }}>
+                              <div className="rounded-circle bg-success d-flex align-items-center justify-content-center text-white" style={{ width: '20px', height: '20px' }}>
+                                <i className="bi bi-check" style={{ fontSize: '12px' }}></i>
+                              </div>
+                              <span className="mt-1 text-success fw-semibold">Accepted</span>
+                            </div>
+                            
+                            <div className="d-flex flex-column align-items-center position-relative" style={{ zIndex: 1 }}>
+                              <div className="rounded-circle bg-success d-flex align-items-center justify-content-center text-white" style={{ width: '20px', height: '20px' }}>
+                                <i className="bi bi-arrow-repeat" style={{ fontSize: '12px' }}></i>
+                              </div>
+                              <span className="mt-1 text-success fw-semibold">In Progress</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {collab.status === 'Pending' && (
+                        <div className="mt-3 mb-2">
+                          <div className="d-flex align-items-center justify-content-between position-relative" style={{ fontSize: '0.75rem' }}>
+                            <div className="position-absolute w-50" style={{ height: '2px', backgroundColor: '#ffc107', top: '10px', zIndex: 0 }}></div>
+                            <div className="position-absolute w-50 start-50" style={{ height: '2px', backgroundColor: '#dee2e6', top: '10px', zIndex: 0 }}></div>
+                            
+                            <div className="d-flex flex-column align-items-center position-relative" style={{ zIndex: 1 }}>
+                              <div className="rounded-circle bg-warning d-flex align-items-center justify-content-center text-white" style={{ width: '20px', height: '20px' }}>
+                                <i className="bi bi-check" style={{ fontSize: '12px' }}></i>
+                              </div>
+                              <span className="mt-1 text-warning fw-semibold">Requested</span>
+                            </div>
+                            
+                            <div className="d-flex flex-column align-items-center position-relative" style={{ zIndex: 1 }}>
+                              <div className="rounded-circle bg-secondary d-flex align-items-center justify-content-center text-white" style={{ width: '20px', height: '20px' }}>
+                                <i className="bi bi-hourglass" style={{ fontSize: '12px' }}></i>
+                              </div>
+                              <span className="mt-1 text-secondary fw-semibold">Pending</span>
+                            </div>
+                            
+                            <div className="d-flex flex-column align-items-center position-relative" style={{ zIndex: 1 }}>
+                              <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center text-muted" style={{ width: '20px', height: '20px' }}>
+                                <i className="bi bi-three-dots" style={{ fontSize: '12px' }}></i>
+                              </div>
+                              <span className="mt-1 text-muted">Awaiting</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
                       <small className="text-muted">
                         <i className="bi bi-calendar me-1"></i>
                         {formatDate(collab.createdAt)}

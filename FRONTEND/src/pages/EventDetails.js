@@ -45,6 +45,12 @@ const EventDetails = () => {
       return;
     }
 
+    // Check capacity before registering
+    if (event.capacity && event.registrationCount >= event.capacity) {
+      toast.warning('Sorry, this event is already full');
+      return;
+    }
+
     try {
       await api.post(`/events/${id}/register`);
       toast.success('Successfully registered for event!');

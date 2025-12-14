@@ -183,7 +183,7 @@ RESEARCH-HUB/
 │   ├── middleware/      # Auth, validation
 │   └── server.js        # Entry point
 │
-├── client/              # React Frontend
+├── FRONTEND/            # React Frontend
 │   ├── src/
 │   │   ├── components/  # Reusable components
 │   │   ├── pages/       # Page components

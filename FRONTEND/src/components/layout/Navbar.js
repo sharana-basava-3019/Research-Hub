@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import EmailVerificationBanner from '../EmailVerificationBanner';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -23,8 +24,10 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="navbar">
-      <div className="container">
+    <>
+      <EmailVerificationBanner />
+      <nav className="navbar">
+        <div className="container">
         <div className="flex items-center justify-between py-4">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
@@ -75,6 +78,15 @@ const Navbar = () => {
                 >
                   Analytics
                 </Link>
+                {user.designation === 'Professor' && (
+                  <Link 
+                    to="/verification-requests" 
+                    className={`nav-link ${isActive('/verification-requests') ? 'active' : ''}`}
+                  >
+                    <i className="bi bi-patch-check me-1"></i>
+                    Verify Projects
+                  </Link>
+                )}
                 {user.role === 'admin' && (
                   <Link 
                     to="/admin" 
@@ -89,9 +101,12 @@ const Navbar = () => {
                 <div className="relative group">
                   <button className="flex items-center space-x-2 nav-link relative">
                     <img 
-                      src={user.profilePicture || '/default-avatar.jpg'} 
+                      src={user.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.firstName + ' ' + user.lastName)}&background=4F46E5&color=fff&size=128`} 
                       alt={user.firstName}
                       className="w-8 h-8 rounded-full object-cover"
+                      onError={(e) => {
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.firstName + ' ' + user.lastName)}&background=4F46E5&color=fff&size=128`;
+                      }}
                     />
                     <span>{user.firstName}</span>
                     <i className="bi bi-chevron-down text-sm"></i>
@@ -196,6 +211,7 @@ const Navbar = () => {
         )}
       </div>
     </nav>
+    </>
   );
 };
 

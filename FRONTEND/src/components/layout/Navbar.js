@@ -6,7 +6,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import EmailVerificationBanner from '../EmailVerificationBanner';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -25,7 +24,6 @@ const Navbar = () => {
 
   return (
     <>
-      <EmailVerificationBanner />
       <nav className="navbar">
         <div className="container">
         <div className="flex items-center justify-between py-4">

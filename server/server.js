@@ -127,6 +127,7 @@ app.use('/api/collaborations', require('./routes/collaborationRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/events', require('./routes/eventRoutes'));
+app.use('/api/plagiarism', require('./routes/documentPlagiarismRoutes'));
 
 // Health Check Endpoint
 app.get('/health', (req, res) => {

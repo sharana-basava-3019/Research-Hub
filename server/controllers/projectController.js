@@ -9,6 +9,7 @@ const User = require('../models/User');
 const Notification = require('../models/Notification');
 const VerificationRequest = require('../models/VerificationRequest');
 const PlagiarismChecker = require('../services/plagiarismChecker');
+const DocumentExtractor = require('../services/documentExtractor');
 const { asyncHandler } = require('../middleware/validator');
 const { ErrorResponse } = require('../middleware/errorHandler');
 const path = require('path');
@@ -547,11 +548,410 @@ exports.uploadAttachment = asyncHandler(async (req, res, next) => {
   project.attachments.push(attachment);
   await project.save();
 
+  // Get the newly added attachment with its _id
+  const newAttachment = project.attachments[project.attachments.length - 1];
+
   res.status(200).json({
     status: 'success',
     message: 'File uploaded successfully',
     data: {
-      attachment: project.attachments[project.attachments.length - 1]
+      attachment: newAttachment
+    }
+  });
+});
+
+/**
+ * @desc    Check plagiarism for a specific attachment
+ * @route   POST /api/projects/:id/attachments/:attachmentId/check-plagiarism
+ * @access  Private
+ */
+exports.checkAttachmentPlagiarism = asyncHandler(async (req, res, next) => {
+  const project = await Project.findById(req.params.id);
+
+  if (!project) {
+    return next(new ErrorResponse('Project not found', 404));
+  }
+
+  const attachment = project.attachments.id(req.params.attachmentId);
+
+  if (!attachment) {
+    return next(new ErrorResponse('Attachment not found', 404));
+  }
+
+  // Check if file is PDF or DOCX
+  const isPdfOrDocx = attachment.filename.match(/\.(pdf|docx)$/i);
+  if (!isPdfOrDocx) {
+    return next(new ErrorResponse('Plagiarism check only available for PDF and DOCX files', 400));
+  }
+
+  // Get file path
+  const filePath = path.join(__dirname, '..', attachment.url);
+  
+  if (!fs.existsSync(filePath)) {
+    return next(new ErrorResponse('File not found on server', 404));
+  }
+
+  try {
+    // Extract text from the document
+    const uploadedText = await DocumentExtractor.extractText(filePath);
+
+    if (!uploadedText || uploadedText.trim().length < 100) {
+      return res.status(200).json({
+        status: 'success',
+        warning: false,
+        message: 'Insufficient text content for plagiarism check (minimum 100 characters required)',
+        data: {
+          filename: attachment.filename,
+          textLength: uploadedText?.length || 0
+        }
+      });
+    }
+
+    // Get all projects with attachments to compare against
+    const projects = await Project.find({ 
+      'attachments.0': { $exists: true },
+      _id: { $ne: project._id }
+    })
+      .select('title attachments owner')
+      .populate('owner', 'firstName lastName email')
+      .lean();
+
+    // Prepare existing documents for comparison
+    const existingDocuments = [];
+    
+    for (const proj of projects) {
+      if (!proj.attachments || proj.attachments.length === 0) continue;
+
+      for (const att of proj.attachments) {
+        if (!att.filename.match(/\.(pdf|docx)$/i)) continue;
+        if (att._id.toString() === attachment._id.toString()) continue;
+
+        const attachmentPath = path.join(__dirname, '..', att.url);
+        
+        if (fs.existsSync(attachmentPath)) {
+          try {
+            const attText = await DocumentExtractor.extractText(attachmentPath);
+            
+            if (attText && attText.trim().length >= 100) {
+              existingDocuments.push({
+                _id: att._id,
+                filename: att.filename,
+                text: attText,
+                projectTitle: proj.title,
+                projectId: proj._id,
+                uploadedBy: proj.owner
+              });
+            }
+          } catch (error) {
+            console.error(`Error extracting text from ${att.filename}:`, error.message);
+          }
+        }
+      }
+    }
+
+    // Perform plagiarism check
+    const comparisonResult = await PlagiarismChecker.compareDocument(
+      uploadedText,
+      existingDocuments
+    );
+
+    // Update attachment with results
+    await Project.updateOne(
+      { _id: project._id, 'attachments._id': attachment._id },
+      {
+        $set: {
+          'attachments.$.plagiarism_checked': true,
+          'attachments.$.plagiarism_score': comparisonResult.highestSimilarityScore || 0,
+          'attachments.$.plagiarism_status': comparisonResult.status,
+          'attachments.$.matched_document_id': comparisonResult.mostSimilarDocument?.id || null,
+          'attachments.$.plagiarism_checked_at': new Date()
+        }
+      }
+    );
+
+    // Determine if warning should be shown
+    const showWarning = comparisonResult.status === 'high_similarity' || comparisonResult.status === 'moderate_similarity';
+    
+    res.status(200).json({
+      status: 'success',
+      warning: showWarning,
+      data: {
+        filename: attachment.filename,
+        plagiarismCheck: {
+          status: comparisonResult.status,
+          similarityPercentage: comparisonResult.similarityPercentage,
+          message: comparisonResult.message,
+          totalDocumentsChecked: comparisonResult.totalDocumentsChecked
+        },
+        matches: comparisonResult.matches.slice(0, 5),
+        mostSimilarDocument: comparisonResult.mostSimilarDocument,
+        report: PlagiarismChecker.generateReport(comparisonResult)
+      }
+    });
+
+  } catch (error) {
+    console.error('Error checking plagiarism:', error);
+    return next(new ErrorResponse('Failed to check document for plagiarism', 500));
+  }
+});
+
+/**
+ * @desc    Check plagiarism for project metadata (title, description, abstract)
+ * @route   POST /api/projects/:id/check-metadata-plagiarism
+ * @access  Private
+ */
+exports.checkProjectMetadata = asyncHandler(async (req, res, next) => {
+  const project = await Project.findById(req.params.id);
+
+  if (!project) {
+    return next(new ErrorResponse('Project not found', 404));
+  }
+
+  // Check if user is owner or has permission
+  const ownerId = (typeof project.owner === 'object' && project.owner._id) 
+    ? project.owner._id.toString() 
+    : project.owner.toString();
+  
+  const isOwner = ownerId === req.user.id;
+  const isCollaborator = project.collaborators.some(
+    collab => {
+      const collabUserId = (typeof collab.user === 'object' && collab.user._id) 
+        ? collab.user._id.toString() 
+        : collab.user.toString();
+      return collabUserId === req.user.id;
+    }
+  );
+
+  if (!isOwner && !isCollaborator && req.user.role !== 'professor' && req.user.role !== 'admin') {
+    return next(new ErrorResponse('Not authorized to check plagiarism for this project', 403));
+  }
+
+  try {
+    // Fetch all other projects (excluding this one)
+    const existingProjects = await Project.find({
+      _id: { $ne: project._id }
+    }).select('title description abstract methodology keywords owner')
+      .populate('owner', 'firstName lastName email');
+
+    // Run plagiarism check with 75% threshold
+    const result = await PlagiarismChecker.checkPlagiarism(
+      project,
+      existingProjects,
+      0.50 // Lower threshold to 50% for metadata
+    );
+
+    // Update project with plagiarism check results
+    await Project.findByIdAndUpdate(project._id, {
+      plagiarism_flag: result.plagiarismDetected,
+      plagiarism_score: result.highestScore,
+      matched_project_id: result.matchedProjectId,
+      plagiarism_checked_at: new Date()
+    });
+
+    let matchedProjectInfo = null;
+    if (result.matchedProjectId) {
+      const matchedProject = await Project.findById(result.matchedProjectId)
+        .select('title owner')
+        .populate('owner', 'firstName lastName email');
+      if (matchedProject) {
+        matchedProjectInfo = {
+          id: matchedProject._id,
+          title: matchedProject.title,
+          owner: matchedProject.owner
+        };
+      }
+    }
+
+    const showWarning = result.plagiarismDetected;
+    const similarityPercentage = Math.round(result.highestScore * 100);
+
+    res.status(200).json({
+      status: 'success',
+      warning: showWarning,
+      data: {
+        projectTitle: project.title,
+        plagiarismCheck: {
+          plagiarismDetected: result.plagiarismDetected,
+          similarityPercentage: similarityPercentage,
+          similarityScore: result.highestScore,
+          message: result.message,
+          totalProjectsChecked: existingProjects.length
+        },
+        matchedProject: matchedProjectInfo,
+        recommendation: showWarning 
+          ? `⚠️ High similarity detected (${similarityPercentage}%). Please review the project content for potential plagiarism.`
+          : `✓ No significant plagiarism detected (${similarityPercentage}% similarity).`
+      }
+    });
+
+  } catch (error) {
+    console.error('Error checking project metadata plagiarism:', error);
+    return next(new ErrorResponse('Failed to check project for plagiarism', 500));
+  }
+});
+
+/**
+ * @desc    Check plagiarism for all attachments in a project
+ * @route   POST /api/projects/:id/check-all-attachments
+ * @access  Private
+ */
+exports.checkAllAttachments = asyncHandler(async (req, res, next) => {
+  const project = await Project.findById(req.params.id);
+
+  if (!project) {
+    return next(new ErrorResponse('Project not found', 404));
+  }
+
+  // Check if user is owner or has permission
+  const ownerId = (typeof project.owner === 'object' && project.owner._id) 
+    ? project.owner._id.toString() 
+    : project.owner.toString();
+  
+  const isOwner = ownerId === req.user.id;
+  const isCollaborator = project.collaborators.some(
+    collab => {
+      const collabUserId = (typeof collab.user === 'object' && collab.user._id) 
+        ? collab.user._id.toString() 
+        : collab.user.toString();
+      return collabUserId === req.user.id;
+    }
+  );
+
+  if (!isOwner && !isCollaborator && req.user.role !== 'professor' && req.user.role !== 'admin') {
+    return next(new ErrorResponse('Not authorized to check plagiarism for this project', 403));
+  }
+
+  const results = [];
+  let hasWarnings = false;
+  
+  // Get all projects for comparison
+  const allProjects = await Project.find({ 
+    'attachments.0': { $exists: true },
+    _id: { $ne: project._id }
+  })
+    .select('title attachments owner')
+    .populate('owner', 'firstName lastName email')
+    .lean();
+
+  // Build database of existing documents
+  const existingDocuments = [];
+  for (const proj of allProjects) {
+    if (!proj.attachments) continue;
+    for (const att of proj.attachments) {
+      if (!att.filename.match(/\.(pdf|docx)$/i)) continue;
+      const attachmentPath = path.join(__dirname, '..', att.url);
+      if (fs.existsSync(attachmentPath)) {
+        try {
+          const attText = await DocumentExtractor.extractText(attachmentPath);
+          if (attText && attText.trim().length >= 100) {
+            existingDocuments.push({
+              _id: att._id,
+              filename: att.filename,
+              text: attText,
+              projectTitle: proj.title,
+              projectId: proj._id
+            });
+          }
+        } catch (error) {
+          console.error(`Error extracting text from ${att.filename}:`, error.message);
+        }
+      }
+    }
+  }
+
+  // Check each attachment
+  for (const attachment of project.attachments) {
+    const isPdfOrDocx = attachment.filename.match(/\.(pdf|docx)$/i);
+    if (!isPdfOrDocx) {
+      results.push({
+        filename: attachment.filename,
+        checked: false,
+        reason: 'Not a PDF or DOCX file'
+      });
+      continue;
+    }
+
+    const filePath = path.join(__dirname, '..', attachment.url);
+    if (!fs.existsSync(filePath)) {
+      results.push({
+        filename: attachment.filename,
+        checked: false,
+        reason: 'File not found on server'
+      });
+      continue;
+    }
+
+    try {
+      const uploadedText = await DocumentExtractor.extractText(filePath);
+      
+      if (!uploadedText || uploadedText.trim().length < 100) {
+        results.push({
+          filename: attachment.filename,
+          checked: false,
+          reason: 'Insufficient text content'
+        });
+        continue;
+      }
+
+      // Filter out current attachment from comparison
+      const compareAgainst = existingDocuments.filter(
+        doc => doc._id.toString() !== attachment._id.toString()
+      );
+
+      const comparisonResult = await PlagiarismChecker.compareDocument(
+        uploadedText,
+        compareAgainst
+      );
+
+      // Update attachment with results
+      await Project.updateOne(
+        { _id: project._id, 'attachments._id': attachment._id },
+        {
+          $set: {
+            'attachments.$.plagiarism_checked': true,
+            'attachments.$.plagiarism_score': comparisonResult.highestSimilarityScore || 0,
+            'attachments.$.plagiarism_status': comparisonResult.status,
+            'attachments.$.matched_document_id': comparisonResult.mostSimilarDocument?.id || null,
+            'attachments.$.plagiarism_checked_at': new Date()
+          }
+        }
+      );
+
+      const showWarning = comparisonResult.status === 'high_similarity' || comparisonResult.status === 'moderate_similarity';
+      if (showWarning) hasWarnings = true;
+
+      results.push({
+        filename: attachment.filename,
+        checked: true,
+        warning: showWarning,
+        status: comparisonResult.status,
+        similarityPercentage: comparisonResult.similarityPercentage,
+        message: comparisonResult.message,
+        mostSimilarDocument: comparisonResult.mostSimilarDocument
+      });
+
+    } catch (error) {
+      console.error(`Error checking ${attachment.filename}:`, error);
+      results.push({
+        filename: attachment.filename,
+        checked: false,
+        reason: 'Error during plagiarism check',
+        error: error.message
+      });
+    }
+  }
+
+  res.status(200).json({
+    status: 'success',
+    warning: hasWarnings,
+    message: hasWarnings 
+      ? '⚠️ Plagiarism detected in one or more files! Please review the results.'
+      : '✓ Plagiarism check complete. No significant issues found.',
+    data: {
+      totalAttachments: project.attachments.length,
+      checkedAttachments: results.filter(r => r.checked).length,
+      filesWithWarnings: results.filter(r => r.warning).length,
+      results: results
     }
   });
 });
@@ -995,5 +1395,128 @@ async function runPlagiarismCheck(projectId) {
     console.log(`Plagiarism check completed for project ${projectId}:`, result);
   } catch (error) {
     console.error('Error running plagiarism check:', error);
+  }
+}
+
+/**
+ * Helper function to run document plagiarism check asynchronously
+ * @param {String} projectId - ID of the project
+ * @param {String} attachmentId - ID of the attachment to check
+ * @param {String} filePath - Path to the uploaded file
+ */
+async function runDocumentPlagiarismCheck(projectId, attachmentId, filePath) {
+  try {
+    console.log(`Starting document plagiarism check for attachment ${attachmentId}...`);
+
+    // Extract text from the uploaded document
+    const uploadedText = await DocumentExtractor.extractText(filePath);
+
+    if (!uploadedText || uploadedText.trim().length < 100) {
+      console.log('Insufficient text for plagiarism check');
+      return;
+    }
+
+    // Get all projects with attachments to compare against
+    const projects = await Project.find({ 
+      'attachments.0': { $exists: true },
+      _id: { $ne: projectId } // Exclude current project
+    })
+      .select('title attachments owner')
+      .populate('owner', 'firstName lastName email')
+      .lean();
+
+    // Prepare existing documents for comparison
+    const existingDocuments = [];
+    
+    for (const proj of projects) {
+      if (!proj.attachments || proj.attachments.length === 0) continue;
+
+      for (const att of proj.attachments) {
+        // Only process PDF and DOCX files, skip the current file being checked
+        if (!att.filename.match(/\.(pdf|docx)$/i)) continue;
+        if (att._id.toString() === attachmentId.toString()) continue;
+
+        const attachmentPath = path.join(__dirname, '..', att.url);
+        
+        if (fs.existsSync(attachmentPath)) {
+          try {
+            const attText = await DocumentExtractor.extractText(attachmentPath);
+            
+            if (attText && attText.trim().length >= 100) {
+              existingDocuments.push({
+                _id: att._id,
+                filename: att.filename,
+                text: attText,
+                projectTitle: proj.title,
+                projectId: proj._id,
+                uploadedBy: proj.owner
+              });
+            }
+          } catch (error) {
+            console.error(`Error extracting text from ${att.filename}:`, error.message);
+          }
+        }
+      }
+    }
+
+    console.log(`Comparing against ${existingDocuments.length} existing documents...`);
+
+    // Perform plagiarism check
+    const comparisonResult = await PlagiarismChecker.compareDocument(
+      uploadedText,
+      existingDocuments
+    );
+
+    // Update attachment with plagiarism check results
+    await Project.updateOne(
+      { _id: projectId, 'attachments._id': attachmentId },
+      {
+        $set: {
+          'attachments.$.plagiarism_checked': true,
+          'attachments.$.plagiarism_score': comparisonResult.highestSimilarityScore || 0,
+          'attachments.$.plagiarism_status': comparisonResult.status,
+          'attachments.$.matched_document_id': comparisonResult.mostSimilarDocument?.id || null,
+          'attachments.$.plagiarism_checked_at': new Date()
+        }
+      }
+    );
+
+    // If high similarity detected, notify project owner
+    if (comparisonResult.status === 'high_similarity' || comparisonResult.status === 'moderate_similarity') {
+      const project = await Project.findById(projectId).select('title owner');
+      const attachment = project.attachments.id(attachmentId);
+      
+      await Notification.createNotification({
+        recipient: project.owner,
+        type: 'SYSTEM_ANNOUNCEMENT',
+        title: 'Document Plagiarism Alert',
+        message: `File "${attachment.filename}" in project "${project.title}" shows ${comparisonResult.similarityPercentage}% similarity with existing documents. Please review.`,
+        link: `/projects/${projectId}`,
+        relatedModel: 'Project',
+        relatedId: projectId,
+        priority: comparisonResult.status === 'high_similarity' ? 'high' : 'medium'
+      });
+    }
+
+    console.log(`Document plagiarism check completed for ${attachmentId}:`, {
+      status: comparisonResult.status,
+      similarity: comparisonResult.similarityPercentage + '%',
+      documentsChecked: comparisonResult.totalDocumentsChecked
+    });
+
+  } catch (error) {
+    console.error('Error running document plagiarism check:', error);
+    
+    // Mark as checked even if error occurred to prevent retry loops
+    await Project.updateOne(
+      { _id: projectId, 'attachments._id': attachmentId },
+      {
+        $set: {
+          'attachments.$.plagiarism_checked': true,
+          'attachments.$.plagiarism_status': 'error',
+          'attachments.$.plagiarism_checked_at': new Date()
+        }
+      }
+    );
   }
 }

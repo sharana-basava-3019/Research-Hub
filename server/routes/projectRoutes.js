@@ -18,6 +18,9 @@ const {
   getComments,
   uploadAttachment,
   deleteAttachment,
+  checkAttachmentPlagiarism,
+  checkAllAttachments,
+  checkProjectMetadata,
   sendVerificationRequest,
   getVerificationRequests,
   getProjectVerificationRequests,
@@ -381,6 +384,71 @@ router.post(
  *         description: File uploaded successfully
  */
 router.post('/:id/attachments', protect, upload.single('file'), uploadAttachment);
+
+/**
+ * @swagger
+ * /api/projects/{id}/check-metadata-plagiarism:
+ *   post:
+ *     summary: Check plagiarism for project metadata (title, description, abstract)
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Plagiarism check completed with results
+ */
+router.post('/:id/check-metadata-plagiarism', protect, checkProjectMetadata);
+
+/**
+ * @swagger
+ * /api/projects/{id}/attachments/{attachmentId}/check-plagiarism:
+ *   post:
+ *     summary: Check plagiarism for a specific attachment
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: attachmentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Plagiarism check completed with results
+ */
+router.post('/:id/attachments/:attachmentId/check-plagiarism', protect, checkAttachmentPlagiarism);
+
+/**
+ * @swagger
+ * /api/projects/{id}/check-all-attachments:
+ *   post:
+ *     summary: Check plagiarism for all PDF/DOCX attachments in project
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Plagiarism checks started for all eligible attachments
+ */
+router.post('/:id/check-all-attachments', protect, checkAllAttachments);
 
 /**
  * @swagger

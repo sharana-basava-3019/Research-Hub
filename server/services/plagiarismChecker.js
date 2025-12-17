@@ -218,6 +218,171 @@ class PlagiarismChecker {
     
     return union.size > 0 ? intersection.size / union.size : 0;
   }
+
+  /**
+   * Compare a document against a list of existing documents
+   * @param {String} documentText - Text content of the document to check
+   * @param {Array} existingDocuments - Array of documents with text content
+   * @returns {Object} - Comparison results with similarity scores
+   */
+  static async compareDocument(documentText, existingDocuments) {
+    try {
+      if (!documentText || documentText.trim().length < 100) {
+        return {
+          status: 'insufficient_content',
+          message: 'Document must contain at least 100 characters for analysis',
+          similarityPercentage: 0,
+          matches: []
+        };
+      }
+
+      const matches = [];
+      let highestSimilarity = 0;
+      let mostSimilarDocument = null;
+
+      // Compare with each existing document
+      for (const existingDoc of existingDocuments) {
+        const existingText = existingDoc.text || existingDoc.content || '';
+        
+        if (existingText.trim().length < 100) {
+          continue; // Skip documents with insufficient content
+        }
+
+        // Calculate similarity using TF-IDF and cosine similarity
+        const similarity = this.calculateSimilarity(documentText, existingText);
+        const similarityPercentage = Math.round(similarity * 100);
+
+        // Store matches above 10% threshold
+        if (similarityPercentage >= 10) {
+          matches.push({
+            documentId: existingDoc._id || existingDoc.id,
+            documentName: existingDoc.filename || existingDoc.name || 'Unknown Document',
+            uploadedBy: existingDoc.uploadedBy || null,
+            similarityPercentage: similarityPercentage,
+            similarityScore: similarity
+          });
+
+          // Track highest similarity
+          if (similarity > highestSimilarity) {
+            highestSimilarity = similarity;
+            mostSimilarDocument = existingDoc;
+          }
+        }
+      }
+
+      // Sort matches by similarity (highest first)
+      matches.sort((a, b) => b.similarityPercentage - a.similarityPercentage);
+
+      // Determine status based on highest similarity
+      let status = 'clear';
+      if (highestSimilarity >= 0.75) {
+        status = 'high_similarity'; // 75%+ indicates potential plagiarism
+      } else if (highestSimilarity >= 0.50) {
+        status = 'moderate_similarity'; // 50-74% requires review
+      } else if (highestSimilarity >= 0.25) {
+        status = 'low_similarity'; // 25-49% slight overlap
+      }
+
+      return {
+        status,
+        message: this.getStatusMessage(status, Math.round(highestSimilarity * 100)),
+        similarityPercentage: Math.round(highestSimilarity * 100),
+        highestSimilarityScore: highestSimilarity,
+        totalDocumentsChecked: existingDocuments.length,
+        matches: matches.slice(0, 10), // Return top 10 matches
+        mostSimilarDocument: mostSimilarDocument ? {
+          id: mostSimilarDocument._id || mostSimilarDocument.id,
+          name: mostSimilarDocument.filename || mostSimilarDocument.name,
+          similarityPercentage: Math.round(highestSimilarity * 100)
+        } : null
+      };
+    } catch (error) {
+      console.error('Error comparing document:', error);
+      return {
+        status: 'error',
+        message: 'An error occurred during plagiarism check',
+        error: error.message,
+        similarityPercentage: 0,
+        matches: []
+      };
+    }
+  }
+
+  /**
+   * Get user-friendly status message
+   * @param {String} status - Status code
+   * @param {Number} percentage - Similarity percentage
+   * @returns {String} - Human-readable message
+   */
+  static getStatusMessage(status, percentage) {
+    switch (status) {
+      case 'high_similarity':
+        return `High similarity detected (${percentage}%). This document may contain plagiarized content.`;
+      case 'moderate_similarity':
+        return `Moderate similarity detected (${percentage}%). Manual review recommended.`;
+      case 'low_similarity':
+        return `Low similarity detected (${percentage}%). Some common phrases found.`;
+      case 'clear':
+        return `Document appears original (${percentage}% similarity). No significant matches found.`;
+      case 'insufficient_content':
+        return 'Document has insufficient content for accurate analysis.';
+      default:
+        return 'Plagiarism check completed.';
+    }
+  }
+
+  /**
+   * Generate a detailed similarity report
+   * @param {Object} comparisonResult - Result from compareDocument
+   * @returns {Object} - Detailed report with interpretation
+   */
+  static generateReport(comparisonResult) {
+    const { status, similarityPercentage, matches } = comparisonResult;
+
+    return {
+      summary: {
+        status,
+        similarityPercentage: `${similarityPercentage}%`,
+        interpretation: this.getInterpretation(status),
+        recommendation: this.getRecommendation(status)
+      },
+      details: {
+        totalMatches: matches.length,
+        topMatches: matches.slice(0, 5),
+        disclaimer: 'This is a basic plagiarism check using text similarity algorithms. It may produce false positives for common phrases, quotes, or properly cited material. For accurate academic plagiarism detection, use specialized tools like Turnitin or iThenticate.'
+      }
+    };
+  }
+
+  /**
+   * Get interpretation of similarity status
+   * @param {String} status - Status code
+   * @returns {String} - Interpretation text
+   */
+  static getInterpretation(status) {
+    const interpretations = {
+      'high_similarity': 'Significant portions of this document match existing content. This requires immediate attention.',
+      'moderate_similarity': 'Notable similarities found. Review the matches to ensure proper attribution and originality.',
+      'low_similarity': 'Minor similarities detected, likely common terminology or phrases in the field.',
+      'clear': 'Document appears to be original with no significant matches to existing documents.'
+    };
+    return interpretations[status] || 'Analysis completed.';
+  }
+
+  /**
+   * Get recommendation based on status
+   * @param {String} status - Status code
+   * @returns {String} - Recommendation text
+   */
+  static getRecommendation(status) {
+    const recommendations = {
+      'high_similarity': 'Do not approve this submission. Contact the author for clarification.',
+      'moderate_similarity': 'Manual review required. Check if similarities are from proper citations or references.',
+      'low_similarity': 'Document can proceed with standard review process.',
+      'clear': 'No action needed. Document passes basic plagiarism screening.'
+    };
+    return recommendations[status] || 'Review the report details.';
+  }
 }
 
 module.exports = PlagiarismChecker;

@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plagiarism Checker - RESEARCH HUB</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .auth-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+
+        .auth-section input {
+            width: calc(50% - 10px);
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .auth-section button {
+            width: calc(50% - 10px);
+            margin: 5px;
+        }
+
+        .upload-section {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+
+        .upload-section:hover {
+            border-color: #764ba2;
+            background: #f8f9fa;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-label {
+            display: inline-block;
+            padding: 15px 30px;
+            background: #667eea;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .file-input-label:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .selected-file {
+            margin-top: 15px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: block;
+            margin: 20px auto;
+        }
+
+        button:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+            font-size: 18px;
+        }
+
+        .results {
+            margin-top: 30px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .status-clear {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-low {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status-moderate {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-high {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .similarity-score {
+            font-size: 48px;
+            font-weight: bold;
+            color: #667eea;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .matches {
+            margin-top: 20px;
+        }
+
+        .match-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+
+        .match-item strong {
+            color: #667eea;
+        }
+
+        .disclaimer {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #856404;
+        }
+
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 15px;
+            border-radius: 5px;
+            color: #721c24;
+            margin: 20px 0;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📄 Document Plagiarism Checker</h1>
+        <p class="subtitle">RESEARCH HUB - Simple Plagiarism Detection Tool</p>
+
+        <!-- Authentication Section -->
+        <div class="auth-section">
+            <h3>🔐 Authentication</h3>
+            <input type="email" id="email" placeholder="Email" value="">
+            <input type="password" id="password" placeholder="Password" value="">
+            <button onclick="login()">Login</button>
+            <button onclick="loadStats()">Get Stats</button>
+            <div id="authStatus" style="margin-top: 10px; color: #666; font-size: 14px;"></div>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="upload-section">
+            <h2>📤 Upload Document</h2>
+            <p>Supported formats: PDF, DOCX (Max 10 MB)</p>
+            
+            <div class="file-input-wrapper">
+                <label for="documentFile" class="file-input-label">
+                    Choose File
+                </label>
+                <input type="file" id="documentFile" accept=".pdf,.docx" onchange="handleFileSelect(event)">
+            </div>
+            
+            <div class="selected-file" id="selectedFile"></div>
+        </div>
+
+        <button id="checkButton" onclick="checkPlagiarism()" disabled>
+            Check for Plagiarism
+        </button>
+
+        <!-- Loading -->
+        <div id="loading" class="loading" style="display: none;">
+            ⏳ Processing document... This may take a few moments.
+        </div>
+
+        <!-- Results -->
+        <div id="results" style="display: none;"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5000';
+        let authToken = localStorage.getItem('token') || '';
+        let selectedFile = null;
+
+        // Update auth status on load
+        window.onload = () => {
+            updateAuthStatus();
+        };
+
+        function updateAuthStatus() {
+            const statusEl = document.getElementById('authStatus');
+            if (authToken) {
+                statusEl.innerHTML = '✅ Authenticated';
+                statusEl.style.color = 'green';
+            } else {
+                statusEl.innerHTML = '❌ Not authenticated - Please login first';
+                statusEl.style.color = 'red';
+            }
+        }
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            if (!email || !password) {
+                alert('Please enter both email and password');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.token) {
+                    authToken = data.token;
+                    localStorage.setItem('token', authToken);
+                    alert('Login successful!');
+                    updateAuthStatus();
+                } else {
+                    alert('Login failed: ' + (data.message || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Login error: ' + error.message);
+            }
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            const selectedFileDiv = document.getElementById('selectedFile');
+            const checkButton = document.getElementById('checkButton');
+
+            if (file) {
+                selectedFile = file;
+                const fileSize = (file.size / 1024 / 1024).toFixed(2);
+                selectedFileDiv.innerHTML = `✅ Selected: <strong>${file.name}</strong> (${fileSize} MB)`;
+                checkButton.disabled = !authToken;
+            } else {
+                selectedFile = null;
+                selectedFileDiv.innerHTML = '';
+                checkButton.disabled = true;
+            }
+        }
+
+        async function checkPlagiarism() {
+            if (!selectedFile) {
+                alert('Please select a file first');
+                return;
+            }
+
+            if (!authToken) {
+                alert('Please login first');
+                return;
+            }
+
+            const loadingDiv = document.getElementById('loading');
+            const resultsDiv = document.getElementById('results');
+            const checkButton = document.getElementById('checkButton');
+
+            // Show loading
+            loadingDiv.style.display = 'block';
+            resultsDiv.style.display = 'none';
+            checkButton.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('document', selectedFile);
+
+                const response = await fetch(`${API_BASE_URL}/api/plagiarism/check-document`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    displayResults(data.data);
+                } else {
+                    displayError(data.message || 'Failed to check document');
+                }
+            } catch (error) {
+                displayError('Error: ' + error.message);
+            } finally {
+                loadingDiv.style.display = 'none';
+                checkButton.disabled = false;
+            }
+        }
+
+        function displayResults(data) {
+            const resultsDiv = document.getElementById('results');
+            const plagiarismCheck = data.plagiarismCheck;
+            const matches = data.matches || [];
+
+            let statusClass = 'status-clear';
+            if (plagiarismCheck.similarityPercentage >= 75) statusClass = 'status-high';
+            else if (plagiarismCheck.similarityPercentage >= 50) statusClass = 'status-moderate';
+            else if (plagiarismCheck.similarityPercentage >= 25) statusClass = 'status-low';
+
+            let html = `
+                <div class="results">
+                    <h2>📊 Plagiarism Check Results</h2>
+                    
+                    <div class="similarity-score">
+                        ${plagiarismCheck.similarityPercentage}%
+                    </div>
+                    
+                    <div style="text-align: center;">
+                        <span class="status-badge ${statusClass}">
+                            ${plagiarismCheck.status.replace(/_/g, ' ').toUpperCase()}
+                        </span>
+                    </div>
+                    
+                    <p style="text-align: center; margin: 20px 0; font-size: 16px;">
+                        ${plagiarismCheck.message}
+                    </p>
+                    
+                    <div class="stats">
+                        <div class="stat-card">
+                            <div class="stat-value">${plagiarismCheck.totalDocumentsChecked}</div>
+                            <div class="stat-label">Documents Checked</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${matches.length}</div>
+                            <div class="stat-label">Matches Found</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${data.uploadedFile.textLength}</div>
+                            <div class="stat-label">Characters Analyzed</div>
+                        </div>
+                    </div>
+            `;
+
+            if (matches.length > 0) {
+                html += `
+                    <div class="matches">
+                        <h3>🔍 Similar Documents Found</h3>
+                `;
+                
+                matches.slice(0, 5).forEach((match, index) => {
+                    html += `
+                        <div class="match-item">
+                            <strong>${index + 1}. ${match.documentName}</strong>
+                            <br>
+                            Similarity: <strong style="color: #764ba2;">${match.similarityPercentage}%</strong>
+                        </div>
+                    `;
+                });
+
+                html += `</div>`;
+            }
+
+            html += `
+                <div class="disclaimer">
+                    <strong>⚠️ Important Disclaimer:</strong> This is a BASIC plagiarism detection tool for preliminary screening only. 
+                    It does NOT detect paraphrasing, translated content, or check external sources. 
+                    For official academic decisions, use professional tools like Turnitin or iThenticate.
+                </div>
+            </div>
+            `;
+
+            resultsDiv.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
+
+        function displayError(message) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `
+                <div class="error">
+                    <strong>❌ Error:</strong> ${message}
+                </div>
+            `;
+            resultsDiv.style.display = 'block';
+        }
+
+        async function loadStats() {
+            if (!authToken) {
+                alert('Please login first');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/plagiarism/stats`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    const stats = result.data;
+                    alert(`System Statistics:\n\n` +
+                        `Total Projects: ${stats.totalProjects}\n` +
+                        `Total Documents: ${stats.totalDocuments}\n` +
+                        `Processable Documents: ${stats.processableDocuments}\n` +
+                        `PDF Files: ${stats.documentTypes.pdf}\n` +
+                        `DOCX Files: ${stats.documentTypes.docx}`
+                    );
+                } else {
+                    alert('Failed to load stats: ' + result.message);
+                }
+            } catch (error) {
+                alert('Error loading stats: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

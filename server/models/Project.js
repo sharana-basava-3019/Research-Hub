@@ -134,6 +134,30 @@ const ProjectSchema = new mongoose.Schema({
     uploadedAt: {
       type: Date,
       default: Date.now
+    },
+    // Document plagiarism detection fields
+    plagiarism_checked: {
+      type: Boolean,
+      default: false
+    },
+    plagiarism_score: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 1
+    },
+    plagiarism_status: {
+      type: String,
+      enum: ['clear', 'low_similarity', 'moderate_similarity', 'high_similarity', 'not_checked'],
+      default: 'not_checked'
+    },
+    matched_document_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null
+    },
+    plagiarism_checked_at: {
+      type: Date,
+      default: null
     }
   }],
 

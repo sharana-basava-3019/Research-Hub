@@ -314,7 +314,6 @@ This project is licensed under the MIT License.
 
 ## 🙏 Acknowledgments
 
-- NiceSchool Template for UI design
 - Bootstrap for responsive components
 - Chart.js for data visualization
 - Natural Language Toolkit (NLTK) for NLP features
@@ -324,5 +323,3 @@ This project is licensed under the MIT License.
 For questions or support, email: your.email@university.edu
 
 ---
-
-**Note**: This is an academic project for MCA submission. Ensure proper attribution and follow your university's academic integrity guidelines.

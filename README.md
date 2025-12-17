@@ -201,9 +201,8 @@ npm run seed
 - **Research Clustering**: Group similar research areas
 - **Keyword Extraction**: Extract key terms from project descriptions
 
-## 🎨 UI Components (NiceSchool Design)
+## 🎨 UI Components
 
-All components maintain the exact NiceSchool template design:
 - Color scheme: Primary blue (#0D6EFD)
 - Typography: System fonts with clean hierarchy
 - Layout: Responsive grid system

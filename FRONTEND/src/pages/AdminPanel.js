@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
@@ -31,11 +31,21 @@ const AdminPanel = () => {
     byDesignation: {}
   });
 
-  useEffect(() => {
-    fetchUsers();
+  const calculateStats = useCallback((userData) => {
+    const stats = {
+      total: userData.length,
+      admins: userData.filter(u => u.role === 'admin').length,
+      byDesignation: {}
+    };
+
+    userData.forEach(user => {
+      stats.byDesignation[user.designation] = (stats.byDesignation[user.designation] || 0) + 1;
+    });
+
+    setStats(stats);
   }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get('/users');
@@ -50,21 +60,11 @@ const AdminPanel = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [calculateStats]);
 
-  const calculateStats = (userData) => {
-    const stats = {
-      total: userData.length,
-      admins: userData.filter(u => u.role === 'admin').length,
-      byDesignation: {}
-    };
-
-    userData.forEach(user => {
-      stats.byDesignation[user.designation] = (stats.byDesignation[user.designation] || 0) + 1;
-    });
-
-    setStats(stats);
-  };
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   // Format date as Day-Month-Year (DD-MM-YYYY)
   const formatDate = (dateString) => {

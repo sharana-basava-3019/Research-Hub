@@ -78,20 +78,6 @@ const Collaborations = () => {
     }
   };
 
-  const handleCancel = async (id) => {
-    if (!window.confirm('Are you sure you want to cancel this collaboration request?')) {
-      return;
-    }
-
-    try {
-      await api.delete(`/collaborations/${id}`);
-      toast.success('Collaboration request cancelled');
-      fetchCollaborations();
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to cancel collaboration');
-    }
-  };
-
   const handleOpenRevoke = (collab, mode = 'revoke') => {
     setSelectedCollabForRevoke(collab);
     setRevokeModalMode(mode);

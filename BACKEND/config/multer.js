@@ -1,32 +1,31 @@
 /**
- * Multer Configuration
- * File upload configuration with validation
+ * Multer Configuration — Cloudinary Storage
+ * Files are uploaded directly to Cloudinary; no local disk storage required.
+ * All file-type validation logic is preserved unchanged.
  */
 
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('./cloudinary');
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '..', 'uploads', 'projects');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Configure storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadsDir);
+// Cloudinary storage — files land at res.cloudinary.com, not on disk
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => {
+    // Derive extension without the leading dot (Cloudinary format param)
+    const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
+    return {
+      folder: 'research-hub/projects',
+      resource_type: 'raw',   // 'raw' handles PDFs, DOCXs, ZIPs, images, etc.
+      public_id: `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`,
+      format: ext,
+    };
   },
-  filename: function (req, file, cb) {
-    // Create unique filename: timestamp-randomstring-originalname
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const sanitizedFilename = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-    cb(null, uniqueSuffix + '-' + sanitizedFilename);
-  }
 });
 
-// Strict file type whitelist — prevents stored XSS via uploaded HTML/SVG/JS files.
+// ── File type whitelist ──────────────────────────────────────────────────────
+// Strict allowlist prevents stored XSS via uploaded HTML/SVG/JS files.
 // Each entry maps an allowed MIME type to its acceptable file extensions.
 const ALLOWED_TYPES = {
   // Documents
@@ -69,13 +68,13 @@ const fileFilter = (req, file, cb) => {
   cb(null, true);
 };
 
-// Multer upload instance
+// Multer upload instance (Cloudinary storage)
 const upload = multer({
-  storage: storage,
+  storage,
   limits: {
-    fileSize: 20 * 1024 * 1024 // 20MB maximum file size
+    fileSize: 20 * 1024 * 1024, // 20 MB maximum file size
   },
-  fileFilter: fileFilter
+  fileFilter,
 });
 
 module.exports = upload;

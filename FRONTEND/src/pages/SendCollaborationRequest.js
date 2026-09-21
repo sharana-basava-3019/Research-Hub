@@ -360,7 +360,7 @@ const SendCollaborationRequest = () => {
       if (collaborationMode === 'invite') {
         // Send unique user ID and verified username
         payload.receiverId = targetUser._id || targetUser.id;
-        payload.receiverUsername = (targetUser.username || '').replace(/^@+/, '').toLowerCase().trim();
+        payload.receiverUsername = (receiverUsername || targetUser.username || '').replace(/^@+/, '').toLowerCase().trim();
       }
 
       const response = await api.post('/collaborations', payload);

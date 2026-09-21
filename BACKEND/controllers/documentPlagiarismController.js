@@ -1,16 +1,51 @@
 /**
  * Document Plagiarism Controller
- * Handles document upload and plagiarism checking for PDF and DOCX files
+ * Handles document upload and plagiarism checking for PDF and DOCX files.
+ * Files are handled as in-memory Buffers (memoryStorage multer) — no disk I/O.
+ * Existing project attachments are downloaded from Cloudinary for comparison.
  */
 
+const axios = require('axios');
+const os = require('os');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
 const Project = require('../models/Project');
-const User = require('../models/User');
 const DocumentExtractor = require('../services/documentExtractor');
 const PlagiarismChecker = require('../services/plagiarismChecker');
 const { asyncHandler } = require('../middleware/validator');
 const { ErrorResponse } = require('../middleware/errorHandler');
-const path = require('path');
-const fs = require('fs');
+
+/**
+ * Download a Cloudinary (or any HTTPS) URL to a temporary local file.
+ * Returns the temp file path on success, or null if download fails.
+ * Caller is responsible for deleting the temp file after use.
+ * @param {String} url - Remote file URL
+ * @param {String} filename - Original filename (used to derive extension)
+ * @returns {Promise<String|null>}
+ */
+async function downloadToTemp(url, filename) {
+  try {
+    if (!url) return null;
+    const ext = path.extname(filename) || '.tmp';
+    const tmpFile = path.join(os.tmpdir(), `rh-${crypto.randomBytes(8).toString('hex')}${ext}`);
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000 });
+      fs.writeFileSync(tmpFile, response.data);
+      return tmpFile;
+    } else {
+      const localPath = path.join(__dirname, '..', url);
+      if (fs.existsSync(localPath)) {
+        fs.copyFileSync(localPath, tmpFile);
+        return tmpFile;
+      }
+      return null;
+    }
+  } catch (err) {
+    console.warn(`Could not download attachment for plagiarism check (${filename}): ${err.message}`);
+    return null;
+  }
+}
 
 /**
  * @desc    Check document for plagiarism
@@ -18,28 +53,25 @@ const fs = require('fs');
  * @access  Private
  */
 exports.checkDocument = asyncHandler(async (req, res, next) => {
-  // Check if file was uploaded
-  if (!req.file) {
+  // File arrives as a Buffer via memoryStorage multer
+  if (!req.file || !req.file.buffer) {
     return next(new ErrorResponse('Please upload a PDF or DOCX file', 400));
   }
 
-  const uploadedFilePath = req.file.path;
+  const fileBuffer = req.file.buffer;
+  const fileMime  = req.file.mimetype;
+
+  // Validate buffer (size + MIME type)
+  const validation = DocumentExtractor.validateBuffer(fileBuffer, fileMime, 10);
+  if (!validation.valid) {
+    return next(new ErrorResponse(validation.error, 400));
+  }
 
   try {
-    // Validate document
-    const validation = DocumentExtractor.validateDocument(uploadedFilePath, 10);
-    if (!validation.valid) {
-      // Clean up uploaded file
-      fs.unlinkSync(uploadedFilePath);
-      return next(new ErrorResponse(validation.error, 400));
-    }
-
-    // Extract text from uploaded document
-    const uploadedText = await DocumentExtractor.extractText(uploadedFilePath);
+    // Extract text from the uploaded buffer
+    const uploadedText = await DocumentExtractor.extractTextFromBuffer(fileBuffer, fileMime);
 
     if (!uploadedText || uploadedText.trim().length < 100) {
-      // Clean up uploaded file
-      fs.unlinkSync(uploadedFilePath);
       return next(new ErrorResponse('Unable to extract sufficient text from document. Minimum 100 characters required.', 400));
     }
 
@@ -49,9 +81,10 @@ exports.checkDocument = asyncHandler(async (req, res, next) => {
       .populate('owner', 'firstName lastName username email')
       .lean();
 
-    // Prepare existing documents for comparison
+    // Prepare existing documents for comparison — download each from Cloudinary
     const existingDocuments = [];
-    
+    const tempFiles = [];
+
     for (const project of projects) {
       if (!project.attachments || project.attachments.length === 0) continue;
 
@@ -59,41 +92,37 @@ exports.checkDocument = asyncHandler(async (req, res, next) => {
         // Only process PDF and DOCX files
         if (!attachment.filename.match(/\.(pdf|docx)$/i)) continue;
 
-        const attachmentPath = path.join(__dirname, '..', attachment.url);
-        
-        if (fs.existsSync(attachmentPath)) {
-          try {
-            const attachmentText = await DocumentExtractor.extractText(attachmentPath);
-            
-            if (attachmentText && attachmentText.trim().length >= 100) {
-              existingDocuments.push({
-                _id: attachment._id,
-                filename: attachment.filename,
-                text: attachmentText,
-                projectTitle: project.title,
-                projectId: project._id,
-                uploadedBy: project.owner
-              });
-            }
-          } catch (error) {
-            console.error(`Error extracting text from ${attachment.filename}:`, error.message);
-            // Continue with other documents
+        const tempPath = await downloadToTemp(attachment.url, attachment.filename);
+        if (!tempPath) continue;
+        tempFiles.push(tempPath);
+
+        try {
+          const attachmentText = await DocumentExtractor.extractText(tempPath);
+          if (attachmentText && attachmentText.trim().length >= 100) {
+            existingDocuments.push({
+              _id: attachment._id,
+              filename: attachment.filename,
+              text: attachmentText,
+              projectTitle: project.title,
+              projectId: project._id,
+              uploadedBy: project.owner
+            });
           }
+        } catch (error) {
+          console.error(`Error extracting text from ${attachment.filename}:`, error.message);
+          // Continue with other documents
         }
       }
     }
 
     // Perform plagiarism check
-    const comparisonResult = await PlagiarismChecker.compareDocument(
-      uploadedText,
-      existingDocuments
-    );
+    const comparisonResult = await PlagiarismChecker.compareDocument(uploadedText, existingDocuments);
 
     // Generate detailed report
     const report = PlagiarismChecker.generateReport(comparisonResult);
 
-    // Clean up uploaded file after processing
-    fs.unlinkSync(uploadedFilePath);
+    // Clean up all temp files
+    tempFiles.forEach(f => { try { fs.unlinkSync(f); } catch (_) {} });
 
     // Return results
     res.status(200).json({
@@ -120,11 +149,6 @@ exports.checkDocument = asyncHandler(async (req, res, next) => {
     });
 
   } catch (error) {
-    // Clean up uploaded file in case of error
-    if (fs.existsSync(uploadedFilePath)) {
-      fs.unlinkSync(uploadedFilePath);
-    }
-    
     console.error('Error in document plagiarism check:', error);
     return next(new ErrorResponse('Failed to process document for plagiarism check', 500));
   }
@@ -136,45 +160,34 @@ exports.checkDocument = asyncHandler(async (req, res, next) => {
  * @access  Private
  */
 exports.compareDocuments = asyncHandler(async (req, res, next) => {
-  // Check if two files were uploaded
+  // Files arrive as Buffers via memoryStorage multer
   if (!req.files || req.files.length !== 2) {
     return next(new ErrorResponse('Please upload exactly 2 documents (PDF or DOCX)', 400));
   }
 
-  const file1Path = req.files[0].path;
-  const file2Path = req.files[1].path;
+  const file1 = req.files[0];
+  const file2 = req.files[1];
+
+  // Validate both buffers
+  const validation1 = DocumentExtractor.validateBuffer(file1.buffer, file1.mimetype, 10);
+  const validation2 = DocumentExtractor.validateBuffer(file2.buffer, file2.mimetype, 10);
+
+  if (!validation1.valid) {
+    return next(new ErrorResponse(`Document 1: ${validation1.error}`, 400));
+  }
+  if (!validation2.valid) {
+    return next(new ErrorResponse(`Document 2: ${validation2.error}`, 400));
+  }
 
   try {
-    // Validate both documents
-    const validation1 = DocumentExtractor.validateDocument(file1Path, 10);
-    const validation2 = DocumentExtractor.validateDocument(file2Path, 10);
+    // Extract text from both buffers
+    const text1 = await DocumentExtractor.extractTextFromBuffer(file1.buffer, file1.mimetype);
+    const text2 = await DocumentExtractor.extractTextFromBuffer(file2.buffer, file2.mimetype);
 
-    if (!validation1.valid) {
-      fs.unlinkSync(file1Path);
-      fs.unlinkSync(file2Path);
-      return next(new ErrorResponse(`Document 1: ${validation1.error}`, 400));
-    }
-
-    if (!validation2.valid) {
-      fs.unlinkSync(file1Path);
-      fs.unlinkSync(file2Path);
-      return next(new ErrorResponse(`Document 2: ${validation2.error}`, 400));
-    }
-
-    // Extract text from both documents
-    const text1 = await DocumentExtractor.extractText(file1Path);
-    const text2 = await DocumentExtractor.extractText(file2Path);
-
-    // Validate extracted text
     if (!text1 || text1.trim().length < 100) {
-      fs.unlinkSync(file1Path);
-      fs.unlinkSync(file2Path);
       return next(new ErrorResponse('Document 1: Unable to extract sufficient text', 400));
     }
-
     if (!text2 || text2.trim().length < 100) {
-      fs.unlinkSync(file1Path);
-      fs.unlinkSync(file2Path);
       return next(new ErrorResponse('Document 2: Unable to extract sufficient text', 400));
     }
 
@@ -188,28 +201,23 @@ exports.compareDocuments = asyncHandler(async (req, res, next) => {
     else if (similarity >= 0.50) status = 'moderate_similarity';
     else if (similarity >= 0.25) status = 'low_similarity';
 
-    // Clean up uploaded files
-    fs.unlinkSync(file1Path);
-    fs.unlinkSync(file2Path);
-
-    // Return results
     res.status(200).json({
       status: 'success',
       message: 'Documents compared successfully',
       data: {
         document1: {
-          originalName: req.files[0].originalname,
-          size: req.files[0].size,
+          originalName: file1.originalname,
+          size: file1.size,
           textLength: text1.length
         },
         document2: {
-          originalName: req.files[1].originalname,
-          size: req.files[1].size,
+          originalName: file2.originalname,
+          size: file2.size,
           textLength: text2.length
         },
         comparison: {
           status,
-          similarityPercentage: similarityPercentage,
+          similarityPercentage,
           similarityScore: similarity,
           message: PlagiarismChecker.getStatusMessage(status, similarityPercentage),
           interpretation: PlagiarismChecker.getInterpretation(status)
@@ -219,10 +227,6 @@ exports.compareDocuments = asyncHandler(async (req, res, next) => {
     });
 
   } catch (error) {
-    // Clean up uploaded files in case of error
-    if (fs.existsSync(file1Path)) fs.unlinkSync(file1Path);
-    if (fs.existsSync(file2Path)) fs.unlinkSync(file2Path);
-    
     console.error('Error comparing documents:', error);
     return next(new ErrorResponse('Failed to compare documents', 500));
   }

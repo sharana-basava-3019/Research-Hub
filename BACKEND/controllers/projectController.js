@@ -14,6 +14,40 @@ const { asyncHandler } = require('../middleware/validator');
 const { ErrorResponse } = require('../middleware/errorHandler');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const crypto = require('crypto');
+const axios = require('axios');
+
+/**
+ * Download a Cloudinary URL to a temporary local file for text extraction.
+ * Returns the temp file path on success, or null on failure.
+ * Caller must delete the temp file after use.
+ * @param {String} url - Cloudinary (or any HTTPS) file URL
+ * @param {String} filename - Original filename (used to derive extension)
+ * @returns {Promise<String|null>}
+ */
+async function downloadToTemp(url, filename) {
+  try {
+    if (!url) return null;
+    const ext = path.extname(filename) || '.tmp';
+    const tmpFile = path.join(os.tmpdir(), `rh-${crypto.randomBytes(8).toString('hex')}${ext}`);
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000 });
+      fs.writeFileSync(tmpFile, response.data);
+      return tmpFile;
+    } else {
+      const localPath = path.join(__dirname, '..', url);
+      if (fs.existsSync(localPath)) {
+        fs.copyFileSync(localPath, tmpFile);
+        return tmpFile;
+      }
+      return null;
+    }
+  } catch (err) {
+    console.warn(`Could not download attachment for analysis (${filename}): ${err.message}`);
+    return null;
+  }
+}
 
 /**
  * @desc    Get all projects
@@ -638,8 +672,8 @@ exports.uploadAttachment = asyncHandler(async (req, res, next) => {
 
   // Create attachment object
   const attachment = {
-    filename: relativePath, // Use relative path to preserve folder structure
-    url: `/uploads/projects/${req.file.filename}`,
+    filename: relativePath,         // Original or relative filename for display
+    url: req.file.path,             // Cloudinary HTTPS URL (set by multer-storage-cloudinary)
     fileSize: req.file.size,
     mimeType: req.file.mimetype,
     uploadedAt: new Date(),
@@ -686,16 +720,16 @@ exports.checkAttachmentPlagiarism = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Plagiarism check only available for PDF and DOCX files', 400));
   }
 
-  // Get file path
-  const filePath = path.join(__dirname, '..', attachment.url);
-  
-  if (!fs.existsSync(filePath)) {
-    return next(new ErrorResponse('File not found on server', 404));
+  // Download attachment from Cloudinary for text extraction
+  const attachmentTempPath = await downloadToTemp(attachment.url, attachment.filename);
+  if (!attachmentTempPath) {
+    return next(new ErrorResponse('Could not download file for plagiarism check', 404));
   }
 
   try {
-    // Extract text from the document
-    const uploadedText = await DocumentExtractor.extractText(filePath);
+    // Extract text from the downloaded document
+    const uploadedText = await DocumentExtractor.extractText(attachmentTempPath);
+    fs.unlinkSync(attachmentTempPath); // Clean up temp file immediately
 
     if (!uploadedText || uploadedText.trim().length < 100) {
       return res.status(200).json({
@@ -728,25 +762,26 @@ exports.checkAttachmentPlagiarism = asyncHandler(async (req, res, next) => {
         if (!att.filename.match(/\.(pdf|docx)$/i)) continue;
         if (String(att?._id || '') === String(attachment?._id || '')) continue;
 
-        const attachmentPath = path.join(__dirname, '..', att.url);
-        
-        if (fs.existsSync(attachmentPath)) {
-          try {
-            const attText = await DocumentExtractor.extractText(attachmentPath);
-            
-            if (attText && attText.trim().length >= 100) {
-              existingDocuments.push({
-                _id: att._id,
-                filename: att.filename,
-                text: attText,
-                projectTitle: proj.title,
-                projectId: proj._id,
-                uploadedBy: proj.owner
-              });
-            }
-          } catch (error) {
-            console.error(`Error extracting text from ${att.filename}:`, error.message);
+        const tempPath = await downloadToTemp(att.url, att.filename);
+        if (!tempPath) continue;
+
+        try {
+          const attText = await DocumentExtractor.extractText(tempPath);
+          fs.unlinkSync(tempPath); // Clean up immediately after extraction
+
+          if (attText && attText.trim().length >= 100) {
+            existingDocuments.push({
+              _id: att._id,
+              filename: att.filename,
+              text: attText,
+              projectTitle: proj.title,
+              projectId: proj._id,
+              uploadedBy: proj.owner
+            });
           }
+        } catch (error) {
+          if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+          console.error(`Error extracting text from ${att.filename}:`, error.message);
         }
       }
     }
@@ -919,22 +954,23 @@ exports.checkAllAttachments = asyncHandler(async (req, res, next) => {
     if (!proj.attachments) continue;
     for (const att of proj.attachments) {
       if (!att.filename.match(/\.(pdf|docx)$/i)) continue;
-      const attachmentPath = path.join(__dirname, '..', att.url);
-      if (fs.existsSync(attachmentPath)) {
-        try {
-          const attText = await DocumentExtractor.extractText(attachmentPath);
-          if (attText && attText.trim().length >= 100) {
-            existingDocuments.push({
-              _id: att._id,
-              filename: att.filename,
-              text: attText,
-              projectTitle: proj.title,
-              projectId: proj._id
-            });
-          }
-        } catch (error) {
-          console.error(`Error extracting text from ${att.filename}:`, error.message);
+      const tempPath = await downloadToTemp(att.url, att.filename);
+      if (!tempPath) continue;
+      try {
+        const attText = await DocumentExtractor.extractText(tempPath);
+        fs.unlinkSync(tempPath);
+        if (attText && attText.trim().length >= 100) {
+          existingDocuments.push({
+            _id: att._id,
+            filename: att.filename,
+            text: attText,
+            projectTitle: proj.title,
+            projectId: proj._id
+          });
         }
+      } catch (error) {
+        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        console.error(`Error extracting text from ${att.filename}:`, error.message);
       }
     }
   }
@@ -951,18 +987,19 @@ exports.checkAllAttachments = asyncHandler(async (req, res, next) => {
       continue;
     }
 
-    const filePath = path.join(__dirname, '..', attachment.url);
-    if (!fs.existsSync(filePath)) {
+    const tempPath = await downloadToTemp(attachment.url, attachment.filename);
+    if (!tempPath) {
       results.push({
         filename: attachment.filename,
         checked: false,
-        reason: 'File not found on server'
+        reason: 'File not found or could not be downloaded'
       });
       continue;
     }
 
     try {
-      const uploadedText = await DocumentExtractor.extractText(filePath);
+      const uploadedText = await DocumentExtractor.extractText(tempPath);
+      fs.unlinkSync(tempPath);
       
       if (!uploadedText || uploadedText.trim().length < 100) {
         results.push({
@@ -1063,10 +1100,20 @@ exports.deleteAttachment = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Attachment not found', 404));
   }
 
-  // Delete file from filesystem
-  const filePath = path.join(__dirname, '..', attachment.url);
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
+  // Delete file from Cloudinary
+  try {
+    const cloudinary = require('../config/cloudinary');
+    // Extract the public_id from the Cloudinary URL.
+    // Cloudinary URLs follow: https://res.cloudinary.com/<cloud>/raw/upload/<...>/research-hub/projects/<public_id>.<ext>
+    // The public_id stored in Cloudinary includes the folder prefix.
+    const urlParts = attachment.url.split('/');
+    const fileWithExt = urlParts.slice(-1)[0];
+    const filename = fileWithExt.replace(/\.[^/.]+$/, ''); // strip extension
+    const publicId = `research-hub/projects/${filename}`;
+    await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' });
+  } catch (cloudErr) {
+    // Non-fatal: log and continue — always remove the DB record
+    console.warn('Cloudinary delete warning (continuing):', cloudErr.message);
   }
 
   // Remove from project
@@ -1509,8 +1556,16 @@ async function runDocumentPlagiarismCheck(projectId, attachmentId, filePath) {
   try {
     console.log(`Starting document plagiarism check for attachment ${attachmentId}...`);
 
+    // Download/prepare document to check
+    const targetTempPath = await downloadToTemp(filePath, 'document.pdf');
+    if (!targetTempPath) {
+      console.log('File not accessible for plagiarism check');
+      return;
+    }
+
     // Extract text from the uploaded document
-    const uploadedText = await DocumentExtractor.extractText(filePath);
+    const uploadedText = await DocumentExtractor.extractText(targetTempPath);
+    fs.unlinkSync(targetTempPath);
 
     if (!uploadedText || uploadedText.trim().length < 100) {
       console.log('Insufficient text for plagiarism check');
@@ -1537,25 +1592,26 @@ async function runDocumentPlagiarismCheck(projectId, attachmentId, filePath) {
         if (!att.filename.match(/\.(pdf|docx)$/i)) continue;
         if (String(att?._id || '') === String(attachmentId || '')) continue;
 
-        const attachmentPath = path.join(__dirname, '..', att.url);
-        
-        if (fs.existsSync(attachmentPath)) {
-          try {
-            const attText = await DocumentExtractor.extractText(attachmentPath);
-            
-            if (attText && attText.trim().length >= 100) {
-              existingDocuments.push({
-                _id: att._id,
-                filename: att.filename,
-                text: attText,
-                projectTitle: proj.title,
-                projectId: proj._id,
-                uploadedBy: proj.owner
-              });
-            }
-          } catch (error) {
-            console.error(`Error extracting text from ${att.filename}:`, error.message);
+        const tempPath = await downloadToTemp(att.url, att.filename);
+        if (!tempPath) continue;
+
+        try {
+          const attText = await DocumentExtractor.extractText(tempPath);
+          fs.unlinkSync(tempPath);
+          
+          if (attText && attText.trim().length >= 100) {
+            existingDocuments.push({
+              _id: att._id,
+              filename: att.filename,
+              text: attText,
+              projectTitle: proj.title,
+              projectId: proj._id,
+              uploadedBy: proj.owner
+            });
           }
+        } catch (error) {
+          if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+          console.error(`Error extracting text from ${att.filename}:`, error.message);
         }
       }
     }

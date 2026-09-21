@@ -16,6 +16,7 @@ export const isValidUrl = (url) => {
   
   try {
     // Check for dangerous protocols
+    // eslint-disable-next-line no-script-url
     const dangerousProtocols = ['javascript:', 'data:', 'vbscript:', 'file:'];
     const lowerUrl = trimmedUrl.toLowerCase();
     
@@ -83,7 +84,7 @@ export const validatePassword = (password) => {
   }
   
   // Check for at least one special character
-  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+  if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
     return {
       isValid: false,
       message: 'Password must contain at least one special character (!@#$%^&*...)'

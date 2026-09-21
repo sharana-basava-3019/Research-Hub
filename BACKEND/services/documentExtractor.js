@@ -142,6 +142,61 @@ class DocumentExtractor {
       return { valid: false, error: error.message };
     }
   }
+  /**
+   * Extract text from a Buffer (for in-memory multer uploads)
+   * @param {Buffer} buffer - File content as Buffer
+   * @param {String} mimeType - MIME type of the file
+   * @returns {Promise<String>} - Extracted text content
+   */
+  static async extractTextFromBuffer(buffer, mimeType) {
+    try {
+      if (mimeType === 'application/pdf') {
+        const pdfParse = getPdfParse();
+        const data = await pdfParse(buffer);
+        return data.text || '';
+      }
+
+      if (
+        mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        mimeType === 'application/msword'
+      ) {
+        const mammoth = getMammoth();
+        const result = await mammoth.extractRawText({ buffer });
+        return result.value || '';
+      }
+
+      throw new Error(`Unsupported MIME type for buffer extraction: ${mimeType}`);
+    } catch (error) {
+      console.error('Error extracting text from buffer:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Validate document from a Buffer (size + MIME type check)
+   * @param {Buffer} buffer - File buffer
+   * @param {String} mimeType - MIME type
+   * @param {Number} maxSizeMB - Max allowed size in MB
+   * @returns {{valid: Boolean, error: String|null}}
+   */
+  static validateBuffer(buffer, mimeType, maxSizeMB = 10) {
+    const supportedMimes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+    ];
+
+    if (!supportedMimes.includes(mimeType)) {
+      return { valid: false, error: 'Unsupported file type. Only PDF and DOCX files are accepted.' };
+    }
+
+    const fileSizeMB = buffer.length / (1024 * 1024);
+    if (fileSizeMB > maxSizeMB) {
+      return { valid: false, error: `File size (${fileSizeMB.toFixed(1)} MB) exceeds ${maxSizeMB} MB limit` };
+    }
+
+    return { valid: true, error: null };
+  }
 }
 
 module.exports = DocumentExtractor;

@@ -58,14 +58,6 @@ app.use(mongoSanitize());
 // Prevent HTTP Parameter Pollution
 app.use(hpp());
 
-// Static file serving for uploads.
-// Force Content-Disposition: attachment so browsers always download uploaded files
-// rather than rendering them inline — defence-in-depth against stored XSS.
-app.use('/uploads', (req, res, next) => {
-  res.setHeader('Content-Disposition', 'attachment');
-  res.setHeader('X-Frame-Options', 'DENY');
-  next();
-}, express.static(path.join(__dirname, 'uploads')));
 
 // Logging Middleware
 if (process.env.NODE_ENV === 'development') {
@@ -108,8 +100,10 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: `http://localhost:${process.env.PORT || 5000}`,
-        description: 'Development Server'
+        url: process.env.NODE_ENV === 'production'
+          ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'your-api.onrender.com'}`
+          : `http://localhost:${process.env.PORT || 5000}`,
+        description: process.env.NODE_ENV === 'production' ? 'Production Server' : 'Development Server'
       }
     ],
     components: {

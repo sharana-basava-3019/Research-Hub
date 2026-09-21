@@ -12,7 +12,7 @@ import numpy as np
 class RecommendationService:
     def __init__(self):
         """Initialize MongoDB connection"""
-        mongo_uri = os.getenv('MONGO_URI', 'mongodb://localhost:27017/research-hub')
+        mongo_uri = os.getenv('MONGO_URI') or os.getenv('MONGODB_URI') or 'mongodb://localhost:27017/research-hub'
         self.client = MongoClient(mongo_uri)
         self.db = self.client.get_database()
         self.users_collection = self.db['users']

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { getSocket } from '../services/socket';
@@ -10,24 +10,7 @@ const Notifications = () => {
   const [filter, setFilter] = useState('all');
   const [unreadCount, setUnreadCount] = useState(0);
 
-  useEffect(() => {
-    fetchNotifications();
-
-    const socket = getSocket();
-    if (socket) {
-      const handleRealtimeNotif = (newNotif) => {
-        setNotifications((prev) => [newNotif, ...prev]);
-        setUnreadCount((prev) => prev + 1);
-      };
-
-      socket.on('new_notification', handleRealtimeNotif);
-      return () => {
-        socket.off('new_notification', handleRealtimeNotif);
-      };
-    }
-  }, [filter]);
-
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true);
       const params = {};
@@ -47,7 +30,24 @@ const Notifications = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
+
+  useEffect(() => {
+    fetchNotifications();
+
+    const socket = getSocket();
+    if (socket) {
+      const handleRealtimeNotif = (newNotif) => {
+        setNotifications((prev) => [newNotif, ...prev]);
+        setUnreadCount((prev) => prev + 1);
+      };
+
+      socket.on('new_notification', handleRealtimeNotif);
+      return () => {
+        socket.off('new_notification', handleRealtimeNotif);
+      };
+    }
+  }, [fetchNotifications]);
 
   const markAsRead = async (notificationId) => {
     try {

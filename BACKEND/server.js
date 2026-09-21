@@ -200,6 +200,16 @@ app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/events', require('./routes/eventRoutes'));
 app.use('/api/plagiarism', require('./routes/documentPlagiarismRoutes'));
 
+// Route Aliases (support direct requests without /api prefix)
+app.use('/auth', require('./routes/authRoutes'));
+app.use('/users', require('./routes/userRoutes'));
+app.use('/projects', require('./routes/projectRoutes'));
+app.use('/collaborations', require('./routes/collaborationRoutes'));
+app.use('/analytics', require('./routes/analyticsRoutes'));
+app.use('/notifications', require('./routes/notificationRoutes'));
+app.use('/events', require('./routes/eventRoutes'));
+app.use('/plagiarism', require('./routes/documentPlagiarismRoutes'));
+
 // Health Check Endpoint
 app.get('/health', (req, res) => {
   const mongoose = require('mongoose');

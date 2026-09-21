@@ -5,11 +5,21 @@
 
 import axios from 'axios';
 
-// Export base URL for direct file downloads
-export const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
+// Helper to guarantee baseURL always targets the Express '/api' namespace
+const getApiBaseUrl = () => {
+  const envUrl = process.env.REACT_APP_API_URL?.trim();
+  if (!envUrl) {
+    return 'http://localhost:5000/api';
+  }
+  const cleanUrl = envUrl.replace(/\/+$/, '');
+  return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
+};
+
+// Export base URL for direct file downloads (without /api)
+export const API_BASE_URL = getApiBaseUrl().replace(/\/api$/, '');
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
+  baseURL: getApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json'
   }

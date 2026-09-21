@@ -129,12 +129,12 @@ flowchart TD
     end
 
     UI <-->|HTTP REST / Axios| API
-    UI <-->|WebSockets (ws://)| SocketServer
+    UI <-->|"WebSockets (ws://)"| SocketServer
     API --> AuthMW --> Controllers
     Controllers <--> MongoDB
     Controllers --> Uploads
     Controllers --> DocExtractor --> PlagEngine
-    Controllers <-->|HTTP API (Optional)| FlaskAPI
+    Controllers <-->|"HTTP API (Optional)"| FlaskAPI
     FlaskAPI --> RecService
     FlaskAPI --> TrendService
     FlaskAPI --> NLPService

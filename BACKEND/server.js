@@ -19,6 +19,7 @@ const app = express();
 
 // Security Middleware
 app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
   crossOriginEmbedderPolicy: false,
   contentSecurityPolicy: {
     directives: {
@@ -30,12 +31,54 @@ app.use(helmet({
   },
 }));
 
+// Allowed Origins for CORS
+const defaultAllowedOrigins = [
+  'https://research-kxmap9t0k-sharana.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+  'http://127.0.0.1:5173'
+];
+
+// Helper to determine if an origin is permitted
+const isOriginAllowed = (origin) => {
+  // Allow requests with no origin (mobile apps, curl, Postman, health checks)
+  if (!origin) return true;
+
+  // Environment-configured origins
+  const envOrigins = (process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [])
+    .map(o => o.trim())
+    .filter(Boolean);
+
+  const allowedOrigins = [...defaultAllowedOrigins, ...envOrigins];
+  if (process.env.FRONTEND_URL) {
+    allowedOrigins.push(process.env.FRONTEND_URL.trim());
+  }
+
+  // Exact match
+  if (allowedOrigins.includes(origin)) {
+    return true;
+  }
+
+  // Allow any Vercel deployment preview / production domain
+  if (/^https:\/\/[a-zA-Z0-9-]+(-[a-zA-Z0-9]+)*\.vercel\.app$/.test(origin) || /^https:\/\/.*\.vercel\.app$/.test(origin)) {
+    return true;
+  }
+
+  // Allow any localhost or 127.0.0.1 development origin (any port)
+  if (/^http:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/.test(origin)) {
+    return true;
+  }
+
+  return false;
+};
+
 // CORS Configuration
 const corsOptions = {
   origin: function (origin, callback) {
-    const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'];
-    // Allow requests with no origin (mobile apps, curl, Postman)
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    if (isOriginAllowed(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -43,10 +86,22 @@ const corsOptions = {
   },
   credentials: true,
   optionsSuccessStatus: 200,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers'
+  ],
+  exposedHeaders: ['Content-Range', 'X-Content-Range', 'Authorization'],
+  maxAge: 86400
 };
+
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Body Parser Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -203,7 +258,13 @@ const bootstrap = async () => {
 
     const io = new Server(server, {
       cors: {
-        origin: (process.env.CORS_ORIGINS && process.env.CORS_ORIGINS.split(',')) || ['http://localhost:3000', 'http://localhost:3001'],
+        origin: function (origin, callback) {
+          if (isOriginAllowed(origin)) {
+            callback(null, true);
+          } else {
+            callback(new Error('Not allowed by CORS'));
+          }
+        },
         methods: ['GET', 'POST'],
         credentials: true
       }

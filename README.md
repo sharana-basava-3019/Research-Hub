@@ -13,7 +13,7 @@
 
 1. [Project Overview](#-project-overview)
 2. [Key Features](#-key-features)
-3. [System Architecture](#-system-architecture)
+3. [System Architecture](#️⃣-system-architecture)
 4. [Technology Stack](#-technology-stack)
 5. [Project Folder Structure](#-project-folder-structure)
 6. [Frontend Details](#-frontend-details)

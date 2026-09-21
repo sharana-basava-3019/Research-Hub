@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Environment variables & secrets
+.env
+.env.*
+*.env
+!.env.example
+!.env.*.example
+*.pem
+*.key
+
+# User Uploads
+uploads/*
+!uploads/README.md
+!uploads/.gitkeep
+
+# Logs & Runtime
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage & Testing
+coverage/
+.nyc_output/
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

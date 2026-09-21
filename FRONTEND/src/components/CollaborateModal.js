@@ -59,13 +59,19 @@ const CollaborateModal = ({ show, onClose, targetUser, project }) => {
       return;
     }
 
+    const targetUserId = targetUser?._id || targetUser?.id || (typeof targetUser === 'string' ? targetUser : null);
+    if (!targetUserId) {
+      toast.error('Recipient user information is missing');
+      return;
+    }
+
     // Determine the final role value
     const finalRole = showOtherRole ? otherRoleText.trim() : proposedRole;
 
     try {
       setLoading(true);
       await api.post('/collaborations', {
-        receiverId: targetUser._id || targetUser.id || targetUser,
+        receiverId: targetUserId,
         projectId: selectedProjectId,
         message: message.trim(),
         proposedRole: finalRole || 'Collaborator'
@@ -297,53 +303,26 @@ const CollaborateModal = ({ show, onClose, targetUser, project }) => {
               </div>
             </div>
             <div className="modal-footer" style={{ 
-              backgroundColor: '#f8f9fa', 
-              borderTop: '1px solid #dee2e6',
-              padding: '16px 24px'
+              backgroundColor: 'var(--color-surface-2)', 
+              borderTop: '1px solid var(--color-border)',
+              padding: '16px 24px',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '8px'
             }}>
               <button
                 type="button"
-                className="btn btn-lg px-4"
+                className="btn btn-outline-secondary"
                 onClick={handleClose}
                 disabled={loading}
-                style={{
-                  backgroundColor: '#6c757d',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: '600',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => e.target.style.backgroundColor = '#5a6268'}
-                onMouseLeave={(e) => e.target.style.backgroundColor = '#6c757d'}
               >
-                <i className="bi bi-x-circle me-2"></i>
+                <i className="bi bi-x-lg me-1"></i>
                 Cancel
               </button>
               <button
                 type="submit"
-                className="btn btn-lg px-4"
+                className="btn btn-primary"
                 disabled={loading || projects.length === 0}
-                style={{
-                  background: loading ? '#6c757d' : 'linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: '600',
-                  transition: 'all 0.2s',
-                  opacity: (loading || projects.length === 0) ? '0.6' : '1',
-                  cursor: (loading || projects.length === 0) ? 'not-allowed' : 'pointer'
-                }}
-                onMouseEnter={(e) => {
-                  if (!loading && projects.length > 0) {
-                    e.target.style.transform = 'translateY(-2px)';
-                    e.target.style.boxShadow = '0 4px 12px rgba(13, 110, 253, 0.4)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.transform = 'translateY(0)';
-                  e.target.style.boxShadow = 'none';
-                }}
               >
                 {loading ? (
                   <>
@@ -352,7 +331,7 @@ const CollaborateModal = ({ show, onClose, targetUser, project }) => {
                   </>
                 ) : (
                   <>
-                    <i className="bi bi-send-fill me-2"></i>
+                    <i className="bi bi-send me-1.5"></i>
                     Send Request
                   </>
                 )}

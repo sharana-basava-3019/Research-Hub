@@ -1,4 +1,4 @@
-// Dashboard, Projects, ProjectDetails, CreateProject, EditProject, Profile, Collaborations, Analytics, AdminPanel
+// Dashboard, Projects, ProjectDetails, CreateProject, EditProject, Profile, Collaborations, AdminPanel
 // Create placeholder exports for these pages
 
 export { default as Dashboard } from './Dashboard';
@@ -8,5 +8,4 @@ export { default as CreateProject } from './CreateProject';
 export { default as EditProject } from './EditProject';
 export { default as Profile } from './Profile';
 export { default as Collaborations } from './Collaborations';
-export { default as Analytics } from './Analytics';
 export { default as AdminPanel } from './AdminPanel';

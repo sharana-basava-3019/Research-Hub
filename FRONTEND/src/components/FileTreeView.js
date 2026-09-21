@@ -250,15 +250,6 @@ const FileTreeView = ({ attachments, onDownload, onDelete, onPreview, canDelete 
       <div className="border rounded p-2" style={{ maxHeight: '600px', overflowY: 'auto' }}>
         {renderFolder(fileTree)}
       </div>
-
-      <style jsx="true">{`
-        .hover-bg-light:hover {
-          background-color: #f8f9fa;
-        }
-        .cursor-pointer {
-          cursor: pointer;
-        }
-      `}</style>
     </div>
   );
 };

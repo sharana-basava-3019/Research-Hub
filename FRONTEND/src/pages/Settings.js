@@ -76,10 +76,17 @@ const Settings = () => {
       return;
     }
 
+    // Require password confirmation before changing the email
+    const confirmPassword = window.prompt('Enter your current password to confirm email change:');
+    if (!confirmPassword) {
+      toast.error('Password confirmation is required');
+      return;
+    }
+
     setLoading(true);
     try {
-      await api.put(`/users/${user.id}`, { email: newEmail });
-      toast.success('Email updated successfully! Please verify your new email.');
+      await api.put('/auth/updateemail', { email: newEmail, password: confirmPassword });
+      toast.success('Email updated successfully!');
       setNewEmail('');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to update email');
@@ -91,10 +98,10 @@ const Settings = () => {
   const handlePrivacyUpdate = async () => {
     setLoading(true);
     try {
-      await api.put(`/users/${user.id}`, { privacySettings });
-      toast.success('Privacy settings updated');
+      await api.put('/auth/updateprofile', { privacySettings });
+      toast.success('Privacy settings updated successfully!');
     } catch (error) {
-      toast.error('Failed to update privacy settings');
+      toast.error(error.response?.data?.message || 'Failed to update privacy settings');
     } finally {
       setLoading(false);
     }
@@ -103,10 +110,10 @@ const Settings = () => {
   const handleNotificationPrefsUpdate = async () => {
     setLoading(true);
     try {
-      await api.put(`/users/${user.id}`, { notificationPrefs });
-      toast.success('Notification preferences updated');
+      await api.put('/auth/updateprofile', { notificationPrefs });
+      toast.success('Notification preferences updated successfully!');
     } catch (error) {
-      toast.error('Failed to update notification preferences');
+      toast.error(error.response?.data?.message || 'Failed to update notification preferences');
     } finally {
       setLoading(false);
     }
@@ -128,87 +135,61 @@ const Settings = () => {
       return;
     }
 
+    // Require password confirmation for the self-service delete endpoint
+    const confirmPassword = window.prompt('Enter your current password to confirm:');
+    if (!confirmPassword) {
+      toast.error('Password confirmation is required');
+      return;
+    }
+
     setLoading(true);
     try {
-      await api.delete(`/users/${user.id}`);
+      await api.delete('/auth/deleteaccount', { data: { password: confirmPassword } });
       toast.success('Account deleted successfully');
       logout();
       navigate('/');
     } catch (error) {
-      toast.error('Failed to delete account');
+      toast.error(error.response?.data?.message || 'Failed to delete account');
       setLoading(false);
     }
   };
 
   return (
-    <div className="bg-light min-h-screen py-8">
-      <div className="container max-w-5xl">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-4xl font-bold text-dark mb-2">Settings</h1>
-          <p className="text-gray-600">Manage your account settings and preferences</p>
+    <div className="container section">
+      {/* Header */}
+      <div className="ds-page-header">
+        <div>
+          <h1 className="ds-page-title">Settings</h1>
+          <p className="ds-page-subtitle">Manage your account settings and preferences</p>
         </div>
+      </div>
 
-        <div className="grid md:grid-cols-4 gap-6">
-          {/* Sidebar Navigation */}
-          <div className="md:col-span-1">
-            <div className="card">
-              <div className="card-body p-2">
+      <div className="row g-4">
+        {/* Sidebar Navigation */}
+        <div className="col-md-3">
+          <div className="card card-static">
+            <div className="card-body" style={{ padding: '8px' }}>
+              {[{tab:'account',icon:'bi-person-circle',label:'Account'},{tab:'security',icon:'bi-shield-lock',label:'Security'},{tab:'privacy',icon:'bi-eye',label:'Privacy'},{tab:'notifications',icon:'bi-bell',label:'Notifications'}].map(({tab,icon,label}) => (
                 <button
-                  onClick={() => setActiveTab('account')}
-                  className={`w-full text-left px-4 py-3 rounded-card flex items-center gap-3 ${
-                    activeTab === 'account'
-                      ? 'bg-primary text-white'
-                      : 'hover:bg-gray-100'
-                  }`}
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={activeTab === tab ? 'btn btn-primary w-100 text-start mb-1' : 'btn btn-outline-primary w-100 text-start mb-1'}
+                  style={{ border: activeTab === tab ? undefined : 'none', background: activeTab === tab ? undefined : 'transparent', color: activeTab === tab ? undefined : 'var(--ds-text-secondary)' }}
                 >
-                  <i className="bi bi-person-circle"></i>
-                  Account
+                  <i className={`bi ${icon} me-2`}></i>{label}
                 </button>
-                <button
-                  onClick={() => setActiveTab('security')}
-                  className={`w-full text-left px-4 py-3 rounded-card flex items-center gap-3 ${
-                    activeTab === 'security'
-                      ? 'bg-primary text-white'
-                      : 'hover:bg-gray-100'
-                  }`}
-                >
-                  <i className="bi bi-shield-lock"></i>
-                  Security
-                </button>
-                <button
-                  onClick={() => setActiveTab('privacy')}
-                  className={`w-full text-left px-4 py-3 rounded-card flex items-center gap-3 ${
-                    activeTab === 'privacy'
-                      ? 'bg-primary text-white'
-                      : 'hover:bg-gray-100'
-                  }`}
-                >
-                  <i className="bi bi-eye"></i>
-                  Privacy
-                </button>
-                <button
-                  onClick={() => setActiveTab('notifications')}
-                  className={`w-full text-left px-4 py-3 rounded-card flex items-center gap-3 ${
-                    activeTab === 'notifications'
-                      ? 'bg-primary text-white'
-                      : 'hover:bg-gray-100'
-                  }`}
-                >
-                  <i className="bi bi-bell"></i>
-                  Notifications
-                </button>
-              </div>
+              ))}
             </div>
           </div>
+        </div>
 
-          {/* Main Content */}
-          <div className="md:col-span-3">
+        {/* Main Content */}
+        <div className="col-md-9">
             {/* Account Tab */}
             {activeTab === 'account' && (
-              <div className="card">
+              <div className="card card-static">
                 <div className="card-header">
-                  <h2 className="text-xl font-semibold">Account Settings</h2>
+                  <i className="bi bi-person-circle me-2"></i>Account Settings
                 </div>
                 <div className="card-body space-y-6">
                   {/* Email Change */}
@@ -255,9 +236,9 @@ const Settings = () => {
                     <button
                       onClick={handleDeleteAccount}
                       disabled={loading}
-                      className="btn bg-danger text-white hover:bg-red-700"
+                      className="btn btn-danger"
                     >
-                      <i className="bi bi-trash mr-2"></i>
+                      <i className="bi bi-trash me-2"></i>
                       Delete Account
                     </button>
                   </div>
@@ -267,9 +248,9 @@ const Settings = () => {
 
             {/* Security Tab */}
             {activeTab === 'security' && (
-              <div className="card">
+              <div className="card card-static">
                 <div className="card-header">
-                  <h2 className="text-xl font-semibold">Security Settings</h2>
+                  <i className="bi bi-shield-lock me-2"></i>Security Settings
                 </div>
                 <div className="card-body">
                   <h3 className="text-lg font-semibold mb-3">Change Password</h3>
@@ -321,9 +302,9 @@ const Settings = () => {
 
             {/* Privacy Tab */}
             {activeTab === 'privacy' && (
-              <div className="card">
+              <div className="card card-static">
                 <div className="card-header">
-                  <h2 className="text-xl font-semibold">Privacy Settings</h2>
+                  <i className="bi bi-eye me-2"></i>Privacy Settings
                 </div>
                 <div className="card-body space-y-4">
                   <div>
@@ -390,9 +371,9 @@ const Settings = () => {
 
             {/* Notifications Tab */}
             {activeTab === 'notifications' && (
-              <div className="card">
+              <div className="card card-static">
                 <div className="card-header">
-                  <h2 className="text-xl font-semibold">Notification Preferences</h2>
+                  <i className="bi bi-bell me-2"></i>Notification Preferences
                 </div>
                 <div className="card-body space-y-4">
                   <div className="flex items-center justify-between py-3 border-b">
@@ -576,7 +557,6 @@ const Settings = () => {
           </div>
         </div>
       </div>
-    </div>
   );
 };
 

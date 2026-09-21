@@ -1,0 +1,21 @@
+{
+  "name": "research-hub",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RESEARCH-HUB University Research Collaboration Platform",
+  "scripts": {
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue.bold,cyan.bold\" \"npm --prefix server run dev\" \"npm --prefix FRONTEND start\"",
+    "start": "concurrently -n \"SERVER,CLIENT\" -c \"blue.bold,cyan.bold\" \"npm --prefix server start\" \"npm --prefix FRONTEND start\"",
+    "start:dev": "npm run dev",
+    "start:server": "npm --prefix server start",
+    "start:frontend": "npm --prefix FRONTEND start",
+    "server": "npm --prefix server start",
+    "server:dev": "npm --prefix server run dev",
+    "frontend": "npm --prefix FRONTEND start",
+    "client": "npm --prefix FRONTEND start",
+    "build": "npm --prefix FRONTEND run build"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}

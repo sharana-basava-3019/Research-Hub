@@ -6,6 +6,7 @@ import { toast } from 'react-toastify';
 import FileUpload from '../components/FileUpload';
 import FileTreeView from '../components/FileTreeView';
 import { API_BASE_URL } from '../services/api';
+import { joinProjectRoom, leaveProjectRoom, getSocket } from '../services/socket';
 
 const ProjectDetails = () => {
   const { id } = useParams();
@@ -21,12 +22,61 @@ const ProjectDetails = () => {
   const [verificationRequests, setVerificationRequests] = useState([]);
   const [professors, setProfessors] = useState([]);
   const [selectedProfessor, setSelectedProfessor] = useState('');
-
+  const [comments, setComments] = useState([]);
+  const [newCommentText, setNewCommentText] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
 
   useEffect(() => {
     fetchProjectDetails();
+    fetchComments();
+
+    // Join real-time project room
+    joinProjectRoom(id);
+
+    const socket = getSocket();
+    if (socket) {
+      const handleRealtimeComment = (comment) => {
+        setComments((prev) => [comment, ...prev]);
+      };
+      socket.on('new_comment', handleRealtimeComment);
+
+      return () => {
+        socket.off('new_comment', handleRealtimeComment);
+        leaveProjectRoom(id);
+      };
+    }
+
+    return () => {
+      leaveProjectRoom(id);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  const fetchComments = async () => {
+    try {
+      const res = await api.get(`/projects/${id}/comments`);
+      setComments(res.data?.data?.comments || []);
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleAddComment = async (e) => {
+    e.preventDefault();
+    if (!newCommentText.trim()) return;
+
+    try {
+      setSubmittingComment(true);
+      await api.post(`/projects/${id}/comments`, { text: newCommentText.trim() });
+      setNewCommentText('');
+      fetchComments();
+      toast.success('Comment posted!');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to post comment');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
 
   const fetchProjectDetails = async () => {
     try {
@@ -75,8 +125,45 @@ const ProjectDetails = () => {
     toast.success(`Downloading: ${attachment.filename}`);
   };
 
-  const getFileExtension = (filename) => {
+  const getFileExtension = (filename = '') => {
     return filename.split('.').pop().toLowerCase();
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  const getFileIcon = (filename = '') => {
+    const ext = getFileExtension(filename);
+    const iconMap = {
+      pdf: 'bi-file-pdf',
+      doc: 'bi-file-word',
+      docx: 'bi-file-word',
+      xls: 'bi-file-excel',
+      xlsx: 'bi-file-excel',
+      ppt: 'bi-file-ppt',
+      pptx: 'bi-file-ppt',
+      zip: 'bi-file-zip',
+      rar: 'bi-file-zip',
+      jpg: 'bi-file-image',
+      jpeg: 'bi-file-image',
+      png: 'bi-file-image',
+      gif: 'bi-file-image',
+      txt: 'bi-file-text',
+      md: 'bi-markdown',
+      csv: 'bi-file-spreadsheet',
+      json: 'bi-file-code',
+      js: 'bi-file-code',
+      html: 'bi-file-code',
+      css: 'bi-file-code',
+      py: 'bi-file-code',
+      java: 'bi-file-code'
+    };
+    return iconMap[ext] || 'bi-file-earmark-text';
   };
 
   const handlePreview = (attachment) => {
@@ -87,31 +174,124 @@ const ProjectDetails = () => {
   const renderPreview = () => {
     if (!previewFile) return null;
 
-    const ext = getFileExtension(previewFile.filename);
+    const filename = previewFile.filename || previewFile.name || 'file';
+    const ext = getFileExtension(filename);
     const fileUrl = `${API_BASE_URL}${previewFile.url}`;
 
-    if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
-      return <img src={fileUrl} alt={previewFile.filename} className="w-100" style={{ maxHeight: '70vh', objectFit: 'contain' }} />;
-    } else if (ext === 'pdf') {
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
       return (
-        <iframe
-          src={fileUrl}
-          title={previewFile.filename}
-          className="w-100"
-          style={{ height: '70vh', border: 'none' }}
-        />
-      );
-    } else if (['txt', 'md', 'json', 'csv'].includes(ext)) {
-      return (
-        <iframe
-          src={fileUrl}
-          title={previewFile.filename}
-          className="w-100"
-          style={{ height: '70vh', border: '1px solid #dee2e6', borderRadius: '4px' }}
-        />
+        <div style={{ background: '#0f172a', padding: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <img
+            src={fileUrl}
+            alt={filename}
+            style={{ maxHeight: '65vh', maxWidth: '100%', objectFit: 'contain', borderRadius: '8px' }}
+          />
+        </div>
       );
     }
-    return <p className="text-center text-muted py-5">Preview not available for this file type</p>;
+
+    return (
+      <div style={{ background: '#ffffff', padding: '2.5rem 1.5rem', textAlign: 'center' }}>
+        {/* File Icon Badge */}
+        <div
+          style={{
+            width: '76px',
+            height: '76px',
+            margin: '0 auto 1.25rem',
+            borderRadius: '16px',
+            background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)',
+            border: '1px solid #c7d2fe',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(79, 70, 229, 0.12)'
+          }}
+        >
+          <i className={`bi ${getFileIcon(filename)}`} style={{ fontSize: '2.5rem', color: '#4f46e5' }}></i>
+        </div>
+
+        {/* Filename & Type */}
+        <h6 style={{ fontSize: '1.15rem', fontWeight: '600', color: '#0f172a', marginBottom: '0.4rem' }}>
+          {filename}
+        </h6>
+        <div className="d-flex align-items-center justify-content-center gap-2 mb-3">
+          <span
+            style={{
+              background: '#f1f5f9',
+              color: '#475569',
+              padding: '0.2rem 0.65rem',
+              borderRadius: '6px',
+              fontSize: '0.75rem',
+              fontWeight: '600',
+              textTransform: 'uppercase',
+              letterSpacing: '0.03em'
+            }}
+          >
+            {ext}
+          </span>
+          {previewFile.fileSize && (
+            <span style={{ color: '#64748b', fontSize: '0.82rem' }}>
+              {formatFileSize(previewFile.fileSize)}
+            </span>
+          )}
+          {previewFile.uploadedAt && (
+            <span style={{ color: '#94a3b8', fontSize: '0.82rem' }}>
+              • {new Date(previewFile.uploadedAt).toLocaleDateString()}
+            </span>
+          )}
+        </div>
+
+        {/* Information Text Box */}
+        <div
+          style={{
+            maxWidth: '430px',
+            margin: '0 auto 1.5rem',
+            padding: '0.85rem 1rem',
+            background: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            borderRadius: '10px',
+            color: '#475569',
+            fontSize: '0.875rem',
+            lineHeight: '1.5'
+          }}
+        >
+          <i className="bi bi-info-circle me-1" style={{ color: '#4f46e5' }}></i>{' '}
+          Inline preview is not available for this file type. You can securely download this file to view its full content.
+        </div>
+
+        {/* Direct Download Button */}
+        <button
+          type="button"
+          className="btn"
+          onClick={() => handleDownload(previewFile)}
+          style={{
+            background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '0.65rem 1.6rem',
+            fontWeight: '600',
+            fontSize: '0.925rem',
+            boxShadow: '0 4px 14px rgba(79, 70, 229, 0.28)',
+            transition: 'all 0.2s ease',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = '0 6px 18px rgba(79, 70, 229, 0.38)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 4px 14px rgba(79, 70, 229, 0.28)';
+          }}
+        >
+          <i className="bi bi-download"></i>
+          Download File
+        </button>
+      </div>
+    );
   };
 
   const handleDeleteAttachment = async (attachmentId) => {
@@ -209,10 +389,22 @@ const ProjectDetails = () => {
 
   const activityFeed = getActivityFeed();
 
-  // Check if user is owner or collaborator
-  const isOwner = user && project?.owner?._id === user.id;
-  const isCollaborator = user && project?.collaborators?.some(
-    collab => collab.user?._id === user.id || collab.user === user.id
+  // Check if user is owner or collaborator — safely compare ObjectId or string IDs
+  const currentUserId = String(user?._id || user?.id || '');
+  const projectOwnerId = String(project?.owner?._id || project?.owner?.id || project?.owner || '');
+  const isOwner = Boolean(
+    user &&
+    project &&
+    currentUserId &&
+    projectOwnerId &&
+    projectOwnerId === currentUserId
+  );
+  const isCollaborator = Boolean(
+    user &&
+    project?.collaborators?.some(collab => {
+      const collabUserId = String(collab?.user?._id || collab?.user?.id || collab?.user || '');
+      return Boolean(collabUserId && collabUserId === currentUserId);
+    })
   );
   const canUploadFiles = isOwner || isCollaborator;
 
@@ -281,134 +473,174 @@ const ProjectDetails = () => {
     }
   };
 
+  if (loading) {
+    return <div className="ds-loading"><div className="ds-spinner"></div></div>;
+  }
+
   // Check if there's a pending verification request
   const hasPendingRequest = verificationRequests.some(req => req.status === 'PENDING');
 
-
-
-  if (loading) {
-    return (
-      <div className="container section text-center">
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
-        <p className="mt-3 text-muted">Loading project details...</p>
-      </div>
-    );
-  }
-
   if (!project) {
     return (
-      <div className="container section text-center">
-        <i className="bi bi-exclamation-triangle display-1 text-warning"></i>
-        <h3 className="mt-3">Project Not Found</h3>
-        <p className="text-muted">The project you're looking for doesn't exist or has been removed.</p>
-        <Link to="/projects" className="btn btn-primary mt-3">
-          <i className="bi bi-arrow-left me-2"></i>
-          Back to Projects
-        </Link>
+      <div className="container section">
+        <div className="ds-empty">
+          <div className="ds-empty-icon"><i className="bi bi-exclamation-triangle"></i></div>
+          <h3>Project Not Found</h3>
+          <p>The project you're looking for doesn't exist or has been removed.</p>
+          <Link to="/projects" className="btn btn-primary mt-3">
+            <i className="bi bi-arrow-left me-2"></i>Back to Projects
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="container section">
-      {/* Back Button */}
-      <div className="mb-3 d-flex justify-content-between align-items-center">
-        <button 
-          className="btn btn-link text-decoration-none p-0"
-          onClick={() => navigate('/projects')}
-        >
-          <i className="bi bi-arrow-left me-2"></i>
-          Back to Projects
-        </button>
-        <button
-          className="btn btn-outline-secondary btn-sm"
-          onClick={() => window.print()}
-          title="Print or save as PDF"
-        >
-          <i className="bi bi-printer me-2"></i>
-          Export to PDF
-        </button>
-      </div>
-
-      {/* Breadcrumb - Minimal Style */}
-      <div className="mb-4">
-        <nav aria-label="breadcrumb">
-          <p className="text-muted mb-0">
-            <Link to="/" className="text-decoration-none text-muted">Home</Link>
-            {' > '}
-            <Link to="/projects" className="text-decoration-none text-muted">Projects</Link>
-            {' > '}
-            <span className="text-dark fw-semibold">{project?.title || 'Loading...'}</span>
-          </p>
-        </nav>
-      </div>
-
-      {/* Project Header */}
-      <div className="row mb-4">
-        <div className="col-lg-8">
-          <h1 className="display-5 fw-bold mb-3">{project.title}</h1>
-          <div className="d-flex flex-wrap gap-4 mb-3">
-            <span className={`badge ${getStatusBadgeClass(project.status)} px-3 py-2`}>
-              {project.status}
-            </span>
-            {project.is_verified && (
-              <span className="badge bg-success px-3 py-2">
-                <i className="bi bi-patch-check-fill me-1"></i>
-                Verified by Professor
-              </span>
-            )}
-            {project.plagiarism_flag && (
-              <span className="badge bg-danger px-3 py-2" title={`${Math.round(project.plagiarism_score * 100)}% similarity detected`}>
-                <i className="bi bi-exclamation-triangle-fill me-1"></i>
-                Possible Plagiarism ({Math.round(project.plagiarism_score * 100)}%)
-              </span>
-            )}
-            {project.researchArea && (
-              <span className="badge bg-info px-3 py-2">
-                <i className="bi bi-bookmark me-1"></i>
-                {project.researchArea}
-              </span>
-            )}
-            {project.visibility && (
-              <span className={`badge ${project.visibility === 'Public' ? 'bg-success' : 'bg-secondary'} px-3 py-2`}>
-                <i className={`bi ${project.visibility === 'Public' ? 'bi-globe' : 'bi-lock'} me-1`}></i>
-                {project.visibility}
-              </span>
-            )}
-          </div>
+      {/* Top Bar: Navigation Breadcrumbs (Left) + Unified Action Toolbar (Right) */}
+      <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 pb-3 border-bottom">
+        {/* Navigation / Breadcrumb */}
+        <div className="d-flex align-items-center gap-2">
+          <button 
+            className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center px-2.5 py-1.5"
+            onClick={() => navigate('/projects')}
+          >
+            <i className="bi bi-arrow-left me-1.5"></i>
+            Back to Projects
+          </button>
+          <span className="text-muted opacity-50 d-none d-sm-inline">/</span>
+          <nav aria-label="breadcrumb" className="d-none d-sm-inline-block">
+            <ol className="breadcrumb mb-0" style={{ fontSize: '0.85rem' }}>
+              <li className="breadcrumb-item"><Link to="/" className="text-decoration-none text-muted">Home</Link></li>
+              <li className="breadcrumb-item"><Link to="/projects" className="text-decoration-none text-muted">Projects</Link></li>
+              <li className="breadcrumb-item active text-truncate" style={{ maxWidth: '220px' }}>{project?.title}</li>
+            </ol>
+          </nav>
         </div>
-        <div className="col-lg-4 text-lg-end d-flex justify-content-end gap-2">
-          {/* Edit Project Button */}
-          {user && (project.owner?._id === user.id || user.role === 'admin') && (
-            <button 
-              className="btn btn-primary"
-              onClick={() => navigate(`/projects/edit/${id}`)}
-            >
-              <i className="bi bi-pencil me-2"></i>
-              Edit Project
-            </button>
-          )}
-          
-          {/* Request Verification Button */}
+
+        {/* Unified Action Toolbar */}
+        <div className="d-flex align-items-center flex-wrap gap-2">
+          {/* Utility: Export to PDF */}
+          <button
+            className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center"
+            onClick={() => window.print()}
+            title="Print or save as PDF"
+          >
+            <i className="bi bi-printer me-1.5"></i>
+            Export PDF
+          </button>
+
+          {/* Owner Secondary: Request Verification Button */}
           {isOwner && !project.is_verified && !hasPendingRequest && (
             <button 
-              className="btn btn-outline-success"
+              className="btn btn-outline-success btn-sm d-inline-flex align-items-center"
               onClick={handleOpenVerificationModal}
             >
-              <i className="bi bi-send me-2"></i>
+              <i className="bi bi-patch-check me-1.5"></i>
               Request Verification
             </button>
           )}
-          
-          {/* Verification Requested Badge */}
+
+          {/* Owner Secondary: Verification Requested Badge */}
           {isOwner && !project.is_verified && hasPendingRequest && (
-            <span className="badge bg-warning text-dark px-3 py-2 d-flex align-items-center">
-              <i className="bi bi-clock-history me-1"></i>
+            <span className="badge bg-warning bg-opacity-10 text-warning-emphasis border border-warning border-opacity-25 px-2.5 py-1.5 d-inline-flex align-items-center" style={{ fontSize: '0.78rem' }}>
+              <i className="bi bi-clock-history me-1.5"></i>
               Verification Requested
             </span>
           )}
+
+          {/* Owner Secondary: Invite Collaborators Button */}
+          {isOwner && (
+            <button
+              className="btn btn-outline-primary btn-sm d-inline-flex align-items-center"
+              onClick={() => navigate('/send-collaboration-request', {
+                state: { project }
+              })}
+            >
+              <i className="bi bi-person-plus me-1.5"></i>
+              Invite Collaborators
+            </button>
+          )}
+
+          {/* Non-Member Primary CTA: Request to Join */}
+          {!isOwner && !isCollaborator && user && user.role !== 'admin' && project.isOpenForCollaboration !== false && (
+            <button 
+              className="btn btn-primary btn-sm d-inline-flex align-items-center"
+              onClick={() => navigate('/send-collaboration-request', {
+                state: { project, targetUser: project.owner }
+              })}
+            >
+              <i className="bi bi-person-plus me-1.5"></i>
+              Request to Join
+            </button>
+          )}
+
+          {/* Member / Admin Primary CTA: Edit Project */}
+          {user && (isOwner || isCollaborator || user.role === 'admin') && (
+            <button 
+              className="btn btn-primary btn-sm d-inline-flex align-items-center"
+              onClick={() => navigate(`/projects/edit/${id}`)}
+            >
+              <i className="bi bi-pencil me-1.5"></i>
+              Edit Project
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Project Header: Title & Badges Full Width */}
+      <div className="mb-4">
+        <h1 className="fw-bold mb-2.5" style={{ fontSize: 'clamp(1.85rem, 3.5vw, 2.5rem)', letterSpacing: '-0.025em', lineHeight: 1.2 }}>
+          {project.title}
+        </h1>
+        <div className="d-flex flex-wrap gap-2 align-items-center">
+          <span className={`badge ${getStatusBadgeClass(project.status)}`}>
+            {project.status}
+          </span>
+          {project.is_verified && (
+            <span className="badge bg-success">
+              <i className="bi bi-patch-check-fill me-1" />
+              Verified
+            </span>
+          )}
+          {project.plagiarism_flag && (
+            <span className="badge bg-danger" title={`${Math.round(project.plagiarism_score * 100)}% similarity detected`}>
+              <i className="bi bi-exclamation-triangle-fill me-1" />
+              Plagiarism ({Math.round(project.plagiarism_score * 100)}%)
+            </span>
+          )}
+          {project.researchArea && (
+            <span className="badge bg-info">
+              <i className="bi bi-tag me-1" />
+              {project.researchArea}
+            </span>
+          )}
+          {project.visibility && (
+            <span className={`badge ${project.visibility === 'Public' ? 'bg-success' : 'bg-secondary'}`}>
+              <i className={`bi ${project.visibility === 'Public' ? 'bi-globe' : 'bi-lock'} me-1`} />
+              {project.visibility}
+            </span>
+          )}
+          {/* Collaborators & Capacity Badge */}
+          {(() => {
+            const activeCollaborators = (project.collaborators || []).filter(
+              c => c.user && (typeof c.user !== 'object' || c.user._id || c.user.firstName)
+            );
+            const collabCount = activeCollaborators.length;
+            return (
+              <span
+                className="badge bg-light text-dark border d-inline-flex align-items-center"
+                title={`1 Project Lead + ${collabCount} Collaborators (Max capacity: ${project.maxCollaborators || 10})`}
+                style={{ fontWeight: 500 }}
+              >
+                <i className="bi bi-people text-primary me-1.5" />
+                <span>{collabCount} / {project.maxCollaborators || 10} Collaborators</span>
+                <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 ms-1.5 px-1.5 py-0.5" style={{ fontSize: '0.68rem', fontWeight: 600 }}>
+                  {collabCount + 1} Total
+                </span>
+              </span>
+            );
+          })()}
         </div>
       </div>
 
@@ -607,8 +839,21 @@ const ProjectDetails = () => {
                   {activityFeed.slice(0, 10).map((activity, index) => (
                     <div key={index} className="activity-item d-flex mb-3 pb-3 border-bottom">
                       <div className="activity-icon me-3">
-                        <div className={`rounded-circle bg-${activity.color} bg-opacity-10 p-2 d-flex align-items-center justify-content-center`} style={{ width: '40px', height: '40px' }}>
-                          <i className={`bi ${activity.icon} text-${activity.color} fs-5`}></i>
+                        <div 
+                          style={{ 
+                            width: '36px', 
+                            height: '36px', 
+                            borderRadius: '8px',
+                            background: 'var(--color-surface-2)',
+                            border: '1px solid var(--color-border)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--color-accent)',
+                            fontSize: '0.9rem'
+                          }}
+                        >
+                          <i className={`bi ${activity.icon}`} />
                         </div>
                       </div>
                       <div className="activity-content flex-grow-1">
@@ -637,6 +882,100 @@ const ProjectDetails = () => {
               </div>
             </div>
           )}
+
+          {/* Real-time Project Discussions & Comments */}
+          <div className="card shadow-sm mb-4">
+            <div className="card-body">
+              <h4 className="card-title mb-4 d-flex align-items-center justify-content-between">
+                <span>
+                  <i className="bi bi-chat-left-text me-2 text-primary"></i>
+                  Discussions & Comments ({comments.length})
+                </span>
+                <span className="badge bg-success bg-opacity-10 text-success" style={{ fontSize: '0.75rem' }}>
+                  <i className="bi bi-broadcast me-1"></i> Live
+                </span>
+              </h4>
+
+              {/* Comment Input */}
+              {user ? (
+                <form onSubmit={handleAddComment} className="mb-4">
+                  <div className="mb-3">
+                    <textarea
+                      className="form-control"
+                      rows="3"
+                      placeholder="Ask a question, share feedback, or leave a thought..."
+                      value={newCommentText}
+                      onChange={(e) => setNewCommentText(e.target.value)}
+                      disabled={submittingComment}
+                      style={{ borderRadius: '10px' }}
+                    ></textarea>
+                  </div>
+                  <div className="d-flex justify-content-end">
+                    <button
+                      type="submit"
+                      className="btn btn-primary btn-sm"
+                      disabled={submittingComment || !newCommentText.trim()}
+                      style={{ borderRadius: '8px', padding: '6px 16px' }}
+                    >
+                      {submittingComment ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-1"></span>
+                          Posting...
+                        </>
+                      ) : (
+                        <>
+                          <i className="bi bi-send me-1"></i> Post Comment
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="alert alert-light border mb-4 text-center py-3">
+                  <p className="mb-2 text-muted">Please log in to join the discussion.</p>
+                  <Link to="/login" className="btn btn-primary btn-sm">Log In</Link>
+                </div>
+              )}
+
+              {/* Comments List */}
+              <div className="comments-list d-flex flex-col gap-3">
+                {comments.map((comment) => (
+                  <div key={comment._id} className="p-3 border rounded-3 bg-light">
+                    <div className="d-flex align-items-center justify-content-between mb-2">
+                      <div className="d-flex align-items-center gap-2">
+                        <img
+                          src={comment.author?.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent((comment.author?.firstName || 'User') + ' ' + (comment.author?.lastName || ''))}&background=4F46E5&color=fff&size=64`}
+                          alt="avatar"
+                          className="rounded-circle"
+                          style={{ width: '32px', height: '32px', objectFit: 'cover' }}
+                        />
+                        <span className="fw-semibold text-dark">
+                          {comment.author?.firstName} {comment.author?.lastName}
+                        </span>
+                      </div>
+                      <small className="text-muted">
+                        {new Date(comment.createdAt).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </small>
+                    </div>
+                    <p className="mb-0 text-secondary" style={{ whiteSpace: 'pre-wrap' }}>
+                      {comment.text}
+                    </p>
+                  </div>
+                ))}
+                {comments.length === 0 && (
+                  <div className="text-center text-muted py-4">
+                    <i className="bi bi-chat-dots display-6 d-block mb-2 text-muted"></i>
+                    <p>No comments yet. Start the conversation!</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Sidebar */}
@@ -644,7 +983,7 @@ const ProjectDetails = () => {
           {/* Project Info Card */}
           <div className="card shadow-sm mb-4 sticky-top" style={{ top: '20px' }}>
             <div className="card-body">
-              <h5 className="card-title mb-3">Project Information</h5>
+              <h5 className="rh-sidebar-title">Project Information</h5>
               
               {/* Owner */}
               {project.owner && (
@@ -662,31 +1001,82 @@ const ProjectDetails = () => {
                 </div>
               )}
 
-              {/* Team */}
-              {project.team && project.team.length > 0 && (
-                <div className="mb-3">
-                  <small className="text-muted d-block mb-2">Team Members</small>
-                  <div className="d-flex align-items-center mb-2">
-                    <i className="bi bi-people text-primary me-2"></i>
-                    <span className="fw-semibold">{project.team.length + 1} members</span>
-                  </div>
-                  <div className="ms-4">
-                    {project.team.slice(0, 3).map((member, index) => (
-                      <div key={index} className="mb-1">
-                        <small>
-                          {member.firstName} {member.lastName}
-                          {member.role && ` - ${member.role}`}
-                        </small>
-                      </div>
-                    ))}
-                    {project.team.length > 3 && (
-                      <small className="text-muted">
-                        +{project.team.length - 3} more
+              {/* Team Members & Collaborators Section */}
+              {(() => {
+                // Only count collaborators with a valid (non-deleted) user reference
+                const validCollaborators = (project.collaborators || []).filter(
+                  c => c.user && (typeof c.user !== 'object' || c.user._id || c.user.firstName)
+                );
+                const collabCount = validCollaborators.length;
+                return (
+                  <div className="mb-3 pt-3 border-top">
+                    <div className="d-flex align-items-center justify-content-between mb-2">
+                      <small className="text-muted fw-bold text-uppercase" style={{ letterSpacing: '0.04em', fontSize: '0.72rem' }}>
+                        Team &amp; Collaborators
                       </small>
+                      {collabCount > 0 && (
+                        <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" style={{ fontSize: '0.75rem' }}>
+                          {collabCount} Collaborator{collabCount !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+
+                    {collabCount > 0 ? (
+                      <div className="d-flex flex-column gap-2 mt-2">
+                        {validCollaborators.map((collab, index) => {
+                          const u = collab.user || {};
+                          const name = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.username || 'Collaborator';
+                          const username = u.username ? `@${u.username}` : null;
+                          const avatarUrl = u.profilePicture && u.profilePicture !== 'default-avatar.jpg'
+                            ? u.profilePicture
+                            : `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=10B981&color=fff&size=64`;
+
+                          return (
+                            <div key={index} className="p-2 rounded-3 bg-light border d-flex align-items-center gap-2">
+                              <img
+                                src={avatarUrl}
+                                alt="Collaborator"
+                                className="rounded-circle flex-shrink-0"
+                                style={{ width: '32px', height: '32px', objectFit: 'cover' }}
+                              />
+                              <div className="min-w-0 flex-grow-1">
+                                <div className="d-flex align-items-center justify-content-between gap-1">
+                                  <span className="fw-semibold text-dark text-truncate" style={{ fontSize: '0.84rem' }}>
+                                    {name}
+                                  </span>
+                                  <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style={{ fontSize: '0.68rem', padding: '0.15rem 0.4rem' }}>
+                                    {collab.role || 'Collaborator'}
+                                  </span>
+                                </div>
+                                {username && (
+                                  <small className="text-muted d-block text-truncate" style={{ fontSize: '0.74rem' }}>
+                                    {username}
+                                  </small>
+                                )}
+                                {u.institution && (
+                                  <small className="text-muted d-block text-truncate" style={{ fontSize: '0.74rem' }}>
+                                    {u.institution}
+                                  </small>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-muted small mt-1" style={{ fontSize: '0.8rem' }}>
+                        No collaborators yet.
+                        {project.isOpenForCollaboration && (
+                          <span className="d-block text-success fw-semibold mt-1" style={{ fontSize: '0.74rem' }}>
+                            • Open for collaboration ({project.maxCollaborators || 10} slots available)
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
+
 
               {/* Timeline */}
               <div className="mb-3">
@@ -704,7 +1094,7 @@ const ProjectDetails = () => {
               </div>
 
               {/* Funding */}
-              {project.fundingAmount && (
+              {Boolean(project.fundingAmount && project.fundingAmount > 0) && (
                 <div className="mb-3">
                   <small className="text-muted d-block mb-1">Funding</small>
                   <div className="d-flex align-items-center">
@@ -746,55 +1136,40 @@ const ProjectDetails = () => {
                   </a>
                 )}
               </div>
-
-              {/* Collaborators Section */}
-              {project.collaborators && project.collaborators.length > 0 && (
-                <div className="mt-4 pt-3 border-top">
-                  <small className="text-muted d-block mb-2">External Collaborators</small>
-                  {project.collaborators.map((collab, index) => (
-                    <div key={index} className="mb-2">
-                      <small className="fw-semibold">{collab.name}</small>
-                      {collab.organization && (
-                        <small className="text-muted d-block">{collab.organization}</small>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 
           {/* Share Card */}
           <div className="card shadow-sm">
             <div className="card-body">
-              <h6 className="card-title mb-3">Share Project</h6>
+              <h5 className="rh-sidebar-title">Share Project</h5>
               <div className="d-grid gap-2">
                 <button 
-                  className="btn btn-sm btn-outline-primary"
+                  className="btn btn-sm btn-outline-secondary text-start"
                   onClick={() => {
                     navigator.clipboard.writeText(window.location.href);
                     toast.success('Link copied to clipboard!');
                   }}
                 >
-                  <i className="bi bi-link-45deg me-2"></i>
+                  <i className="bi bi-link-45deg me-2 text-primary"></i>
                   Copy Link
                 </button>
                 <a
                   href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(project.title)}&url=${encodeURIComponent(window.location.href)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn btn-sm btn-outline-info"
+                  className="btn btn-sm btn-outline-secondary text-start"
                 >
-                  <i className="bi bi-twitter me-2"></i>
-                  Share on Twitter
+                  <i className="bi bi-twitter-x me-2 text-dark"></i>
+                  Share on X (Twitter)
                 </a>
                 <a
                   href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.href)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn btn-sm btn-outline-primary"
+                  className="btn btn-sm btn-outline-secondary text-start"
                 >
-                  <i className="bi bi-linkedin me-2"></i>
+                  <i className="bi bi-linkedin me-2 text-primary"></i>
                   Share on LinkedIn
                 </a>
               </div>
@@ -812,12 +1187,14 @@ const ProjectDetails = () => {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
+            backgroundColor: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
             zIndex: 1050,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '1rem',
+            padding: '1.25rem',
             overflowY: 'auto'
           }}
           onClick={(e) => {
@@ -828,43 +1205,153 @@ const ProjectDetails = () => {
           }}
         >
           <div 
-            className="modal-dialog modal-xl"
-            style={{ margin: 'auto', maxWidth: '90vw' }}
+            className="modal-dialog"
+            style={{ 
+              margin: 'auto', 
+              maxWidth: ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(getFileExtension(previewFile.filename || previewFile.name)) ? '850px' : '560px',
+              width: '100%'
+            }}
           >
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">
-                  <i className="bi bi-eye me-2"></i>
-                  {previewFile.filename}
-                </h5>
+            <div 
+              className="modal-content"
+              style={{
+                background: '#ffffff',
+                backgroundColor: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '16px',
+                boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(15, 23, 42, 0.05)',
+                overflow: 'hidden'
+              }}
+            >
+              <div 
+                className="modal-header d-flex align-items-center justify-content-between"
+                style={{
+                  background: '#f8fafc',
+                  borderBottom: '1px solid #e2e8f0',
+                  padding: '1.1rem 1.5rem'
+                }}
+              >
+                <div className="d-flex align-items-center gap-3 overflow-hidden me-2">
+                  <div
+                    style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '10px',
+                      background: '#eef2ff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#4f46e5',
+                      fontSize: '1.15rem',
+                      flexShrink: 0
+                    }}
+                  >
+                    <i className={`bi ${getFileIcon(previewFile.filename || previewFile.name)}`}></i>
+                  </div>
+                  <div className="overflow-hidden">
+                    <h5 
+                      className="modal-title mb-0 text-truncate"
+                      style={{
+                        fontSize: '1rem',
+                        fontWeight: '600',
+                        color: '#0f172a'
+                      }}
+                      title={previewFile.filename || previewFile.name}
+                    >
+                      {previewFile.filename || previewFile.name}
+                    </h5>
+                    <small style={{ color: '#64748b', fontSize: '0.8rem' }}>
+                      {getFileExtension(previewFile.filename || previewFile.name).toUpperCase()} File
+                      {previewFile.fileSize ? ` • ${formatFileSize(previewFile.fileSize)}` : ''}
+                    </small>
+                  </div>
+                </div>
                 <button 
                   type="button" 
                   className="btn-close" 
+                  aria-label="Close"
                   onClick={() => {
                     setShowPreviewModal(false);
                     setPreviewFile(null);
+                  }}
+                  style={{
+                    fontSize: '0.85rem',
+                    padding: '0.5rem',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
                   }}
                 ></button>
               </div>
-              <div className="modal-body p-0">
+
+              <div className="modal-body p-0" style={{ background: '#ffffff', backgroundColor: '#ffffff' }}>
                 {renderPreview()}
               </div>
-              <div className="modal-footer">
+
+              <div 
+                className="modal-footer d-flex justify-content-end gap-2"
+                style={{
+                  background: '#f8fafc',
+                  borderTop: '1px solid #e2e8f0',
+                  padding: '1rem 1.5rem'
+                }}
+              >
                 <button
-                  className="btn btn-primary"
-                  onClick={() => handleDownload(previewFile)}
-                >
-                  <i className="bi bi-download me-2"></i>
-                  Download
-                </button>
-                <button
-                  className="btn btn-secondary"
+                  type="button"
+                  className="btn"
                   onClick={() => {
                     setShowPreviewModal(false);
                     setPreviewFile(null);
                   }}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    color: '#334155',
+                    borderRadius: '8px',
+                    padding: '0.5rem 1.25rem',
+                    fontWeight: '500',
+                    fontSize: '0.875rem',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#f1f5f9';
+                    e.currentTarget.style.borderColor = '#94a3b8';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#ffffff';
+                    e.currentTarget.style.borderColor = '#cbd5e1';
+                  }}
                 >
                   Close
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => handleDownload(previewFile)}
+                  style={{
+                    background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '0.5rem 1.35rem',
+                    fontWeight: '600',
+                    fontSize: '0.875rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    boxShadow: '0 2px 8px rgba(79, 70, 229, 0.25)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(79, 70, 229, 0.35)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(79, 70, 229, 0.25)';
+                  }}
+                >
+                  <i className="bi bi-download"></i>
+                  Download
                 </button>
               </div>
             </div>

@@ -3,6 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import AuthContext from '../context/AuthContext';
 import api from '../services/api';
 import { toast } from 'react-toastify';
+import { isValidUrl } from '../utils/validation';
 
 const EditProject = () => {
   const { id } = useParams();
@@ -122,6 +123,16 @@ const EditProject = () => {
       toast.error('Research area is required');
       return;
     }
+    
+    // Validate URLs
+    if (formData.repository && !isValidUrl(formData.repository)) {
+      toast.error('Invalid repository URL. Please use http:// or https://');
+      return;
+    }
+    if (formData.documentation && !isValidUrl(formData.documentation)) {
+      toast.error('Invalid documentation URL. Please use http:// or https://');
+      return;
+    }
 
     try {
       setLoading(true);
@@ -163,26 +174,19 @@ const EditProject = () => {
 
   if (!user) {
     return (
-      <div className="container section text-center">
-        <i className="bi bi-lock display-1 text-warning"></i>
-        <h3 className="mt-3">Authentication Required</h3>
-        <p className="text-muted">You must be logged in to edit a project.</p>
-        <Link to="/login" className="btn btn-primary mt-3">
-          Login
-        </Link>
+      <div className="container section">
+        <div className="ds-empty">
+          <div className="ds-empty-icon"><i className="bi bi-lock"></i></div>
+          <h3>Authentication Required</h3>
+          <p>You must be logged in to edit a project.</p>
+          <Link to="/login" className="btn btn-primary mt-3">Login</Link>
+        </div>
       </div>
     );
   }
 
   if (fetchingProject) {
-    return (
-      <div className="container section text-center">
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
-        <p className="mt-3 text-muted">Loading project data...</p>
-      </div>
-    );
+    return <div className="ds-loading"><div className="ds-spinner"></div></div>;
   }
 
   return (
@@ -214,10 +218,10 @@ const EditProject = () => {
       </div>
 
       {/* Page Header */}
-      <div className="row mb-4">
-        <div className="col">
-          <h1 className="display-5 fw-bold">Edit Project</h1>
-          <p className="text-muted">Update the details of your research project.</p>
+      <div className="ds-page-header">
+        <div>
+          <h1 className="ds-page-title">Edit Project</h1>
+          <p className="ds-page-subtitle">Update the details of your research project.</p>
         </div>
       </div>
 

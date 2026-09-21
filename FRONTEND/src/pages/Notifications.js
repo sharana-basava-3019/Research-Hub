@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
+import { getSocket } from '../services/socket';
 import { toast } from 'react-toastify';
 
 const Notifications = () => {
@@ -11,6 +12,19 @@ const Notifications = () => {
 
   useEffect(() => {
     fetchNotifications();
+
+    const socket = getSocket();
+    if (socket) {
+      const handleRealtimeNotif = (newNotif) => {
+        setNotifications((prev) => [newNotif, ...prev]);
+        setUnreadCount((prev) => prev + 1);
+      };
+
+      socket.on('new_notification', handleRealtimeNotif);
+      return () => {
+        socket.off('new_notification', handleRealtimeNotif);
+      };
+    }
   }, [filter]);
 
   const fetchNotifications = async () => {
@@ -72,6 +86,10 @@ const Notifications = () => {
       COLLABORATION_REQUEST: 'bi-people-fill',
       COLLABORATION_ACCEPTED: 'bi-check-circle-fill',
       COLLABORATION_REJECTED: 'bi-x-circle-fill',
+      COLLABORATION_REVOKED: 'bi-person-x-fill',
+      COLLABORATOR_REMOVED: 'bi-person-x-fill',
+      COLLABORATION_EXITED: 'bi-box-arrow-right',
+      COLLABORATOR_LEFT: 'bi-box-arrow-right',
       PROJECT_INVITE: 'bi-folder-fill',
       COMMENT: 'bi-chat-fill',
       EVENT_REMINDER: 'bi-calendar-event',
@@ -87,6 +105,10 @@ const Notifications = () => {
     const colors = {
       COLLABORATION_ACCEPTED: 'success',
       COLLABORATION_REJECTED: 'danger',
+      COLLABORATION_REVOKED: 'danger',
+      COLLABORATOR_REMOVED: 'danger',
+      COLLABORATION_EXITED: 'warning',
+      COLLABORATOR_LEFT: 'warning',
       EVENT_REMINDER: 'info',
       DEADLINE_REMINDER: 'warning',
       SYSTEM_ANNOUNCEMENT: 'primary'
@@ -115,190 +137,149 @@ const Notifications = () => {
   };
 
   return (
-    <div className="bg-light min-h-screen py-8">
-      <div className="container max-w-4xl">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-4xl font-bold text-dark mb-2">Notifications</h1>
-          <p className="text-gray-600">
-            Stay updated with your latest activities and announcements
-          </p>
+    <div className="container section">
+      {/* Header */}
+      <div className="ds-page-header">
+        <div>
+          <h1 className="ds-page-title">
+            <i className="bi bi-bell me-2"></i>
+            Notifications
+          </h1>
+          <p className="ds-page-subtitle">Stay updated with your latest activities and announcements</p>
         </div>
+        <div className="ds-page-actions">
+          {unreadCount > 0 && (
+            <button onClick={markAllAsRead} className="btn btn-outline-primary btn-sm">
+              <i className="bi bi-check-all me-2"></i>
+              Mark All as Read
+            </button>
+          )}
+        </div>
+      </div>
 
-        {/* Stats & Actions */}
-        <div className="card mb-6">
-          <div className="card-body">
-            <div className="flex flex-wrap justify-between items-center gap-4">
-              <div>
-                <span className="text-2xl font-bold text-primary">{unreadCount}</span>
-                <span className="text-gray-600 ml-2">unread notifications</span>
+      {/* Unread count + filter pills */}
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+        <div style={{ color: 'var(--color-text-2)', fontSize: '0.9375rem' }}>
+          <span style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--color-accent)' }}>{unreadCount}</span>
+          {' '}unread notifications
+        </div>
+        <div className="ds-tab-pills">
+          <button className={`ds-tab-pill${filter === 'all' ? ' active' : ''}`} onClick={() => setFilter('all')}>All</button>
+          <button className={`ds-tab-pill${filter === 'unread' ? ' active' : ''}`} onClick={() => setFilter('unread')}>
+            Unread {unreadCount > 0 && <span className="badge bg-primary ms-1" style={{ borderRadius: '999px' }}>{unreadCount}</span>}
+          </button>
+          <button className={`ds-tab-pill${filter === 'read' ? ' active' : ''}`} onClick={() => setFilter('read')}>Read</button>
+        </div>
+      </div>
+
+      {/* Notifications List */}
+      {loading ? (
+        <div className="ds-loading"><div className="ds-spinner"></div></div>
+      ) : notifications.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {notifications.map((notification) => (
+            <div key={notification._id} className={`ds-feed-item${!notification.isRead ? ' unread' : ''}`}>
+              <div className={`ds-feed-icon ${getNotificationColor(notification.type)}`}>
+                <i className={`bi ${getNotificationIcon(notification.type)}`}></i>
               </div>
-              {unreadCount > 0 && (
-                <button
-                  onClick={markAllAsRead}
-                  className="btn btn-outline-primary btn-sm"
-                >
-                  <i className="bi bi-check-all mr-2"></i>
-                  Mark All as Read
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="card mb-6">
-          <div className="card-body">
-            <div className="flex gap-3">
-              <button
-                onClick={() => setFilter('all')}
-                className={`btn btn-sm ${
-                  filter === 'all' ? 'btn-primary' : 'btn-outline-primary'
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setFilter('unread')}
-                className={`btn btn-sm ${
-                  filter === 'unread' ? 'btn-primary' : 'btn-outline-primary'
-                }`}
-              >
-                Unread
-                {unreadCount > 0 && (
-                  <span className="ml-2 badge badge-light">{unreadCount}</span>
+              <div className="ds-feed-content">
+                <div className="ds-feed-title d-flex align-items-center gap-2">
+                  <span>{notification.title}</span>
+                  {(notification.type === 'COLLABORATION_REVOKED' || notification.type === 'COLLABORATOR_REMOVED') && (
+                    <span className="badge" style={{ backgroundColor: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', fontSize: 'var(--font-label)', fontWeight: 700 }}>
+                      REVOCATION ALERT
+                    </span>
+                  )}
+                  {(notification.type === 'COLLABORATION_EXITED' || notification.type === 'COLLABORATOR_LEFT') && (
+                    <span className="badge" style={{ backgroundColor: '#fff7ed', color: '#ea580c', border: '1px solid #ffedd5', fontSize: 'var(--font-label)', fontWeight: 700 }}>
+                      MEMBER EXIT
+                    </span>
+                  )}
+                </div>
+                {(notification.type === 'COLLABORATION_REVOKED' || notification.type === 'COLLABORATOR_REMOVED') ? (
+                  <div
+                    style={{
+                      backgroundColor: '#fef2f2',
+                      color: '#991b1b',
+                      border: '1px solid #fecaca',
+                      borderRadius: '8px',
+                      padding: '10px 14px',
+                      fontSize: '0.88rem',
+                      lineHeight: 1.5,
+                      marginTop: '6px',
+                      marginBottom: '4px'
+                    }}
+                  >
+                    <i className="bi bi-exclamation-triangle-fill me-1.5 text-danger" />
+                    {notification.message}
+                  </div>
+                ) : (notification.type === 'COLLABORATION_EXITED' || notification.type === 'COLLABORATOR_LEFT') ? (
+                  <div
+                    style={{
+                      backgroundColor: '#fff7ed',
+                      color: '#9a3412',
+                      border: '1px solid #ffedd5',
+                      borderRadius: '8px',
+                      padding: '10px 14px',
+                      fontSize: '0.88rem',
+                      lineHeight: 1.5,
+                      marginTop: '6px',
+                      marginBottom: '4px'
+                    }}
+                  >
+                    <i className="bi bi-box-arrow-right me-1.5 text-warning" />
+                    {notification.message}
+                  </div>
+                ) : (
+                  <div className="ds-feed-body">{notification.message}</div>
                 )}
-              </button>
-              <button
-                onClick={() => setFilter('read')}
-                className={`btn btn-sm ${
-                  filter === 'read' ? 'btn-primary' : 'btn-outline-primary'
-                }`}
-              >
-                Read
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Notifications List */}
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="spinner mx-auto"></div>
-            <p className="text-gray-600 mt-4">Loading notifications...</p>
-          </div>
-        ) : notifications.length > 0 ? (
-          <div className="space-y-3">
-            {notifications.map((notification) => (
-              <div
-                key={notification._id}
-                className={`card hover:shadow-lg transition-shadow ${
-                  !notification.isRead ? 'bg-primary-50 border-l-4 border-primary' : ''
-                }`}
-              >
-                <div className="card-body">
-                  <div className="flex gap-4">
-                    {/* Icon */}
-                    <div
-                      className={`flex-shrink-0 w-12 h-12 bg-${getNotificationColor(
-                        notification.type
-                      )}-100 rounded-full flex items-center justify-center`}
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
+                  <span className="ds-feed-time">
+                    <i className="bi bi-clock me-1"></i>
+                    {formatDate(notification.createdAt)}
+                  </span>
+                  {notification.priority && notification.priority !== 'normal' && (
+                    <span className={`badge bg-${notification.priority === 'urgent' ? 'danger' : notification.priority === 'high' ? 'warning' : 'info'}`}>
+                      {notification.priority}
+                    </span>
+                  )}
+                  <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {notification.link && (
+                      <Link to={notification.link} className="ds-btn-link">
+                        View Details <i className="bi bi-arrow-right ms-1"></i>
+                      </Link>
+                    )}
+                    {!notification.isRead && (
+                      <button
+                        onClick={() => markAsRead(notification._id)}
+                        className="btn btn-outline-primary btn-sm btn-icon"
+                        title="Mark as read"
+                      >
+                        <i className="bi bi-check2"></i>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => deleteNotification(notification._id)}
+                      className="btn btn-outline-danger btn-sm btn-icon"
+                      title="Delete"
                     >
-                      <i
-                        className={`${getNotificationIcon(notification.type)} text-${getNotificationColor(
-                          notification.type
-                        )} text-xl`}
-                      ></i>
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h3 className="font-semibold text-dark mb-1">
-                            {notification.title}
-                          </h3>
-                          <p className="text-gray-600 text-sm">{notification.message}</p>
-                        </div>
-                        {!notification.isRead && (
-                          <span className="flex-shrink-0 w-3 h-3 bg-primary rounded-full ml-2"></span>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3 mt-3">
-                        <span className="text-xs text-gray-500">
-                          <i className="bi bi-clock mr-1"></i>
-                          {formatDate(notification.createdAt)}
-                        </span>
-
-                        {notification.priority !== 'normal' && (
-                          <span
-                            className={`badge badge-${
-                              notification.priority === 'urgent'
-                                ? 'danger'
-                                : notification.priority === 'high'
-                                ? 'warning'
-                                : 'info'
-                            } text-xs`}
-                          >
-                            {notification.priority}
-                          </span>
-                        )}
-
-                        {/* Actions */}
-                        <div className="ml-auto flex gap-2">
-                          {notification.link && (
-                            <Link
-                              to={notification.link}
-                              className="text-primary hover:text-primary-dark text-sm font-medium"
-                            >
-                              View Details →
-                            </Link>
-                          )}
-                          
-                          {!notification.isRead && (
-                            <button
-                              onClick={() => markAsRead(notification._id)}
-                              className="text-gray-600 hover:text-gray-800 text-sm"
-                              title="Mark as read"
-                            >
-                              <i className="bi bi-check2"></i>
-                            </button>
-                          )}
-                          
-                          <button
-                            onClick={() => deleteNotification(notification._id)}
-                            className="text-gray-600 hover:text-danger text-sm"
-                            title="Delete"
-                          >
-                            <i className="bi bi-trash"></i>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                      <i className="bi bi-trash"></i>
+                    </button>
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="card">
-            <div className="card-body text-center py-12">
-              <i className="bi bi-bell-slash text-6xl text-gray-300 mb-4"></i>
-              <h3 className="text-xl font-semibold text-gray-600 mb-2">
-                No notifications
-              </h3>
-              <p className="text-gray-500">
-                {filter === 'unread'
-                  ? "You're all caught up!"
-                  : filter === 'read'
-                  ? 'No read notifications'
-                  : 'You have no notifications yet'}
-              </p>
             </div>
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="ds-empty">
+          <div className="ds-empty-icon"><i className="bi bi-bell-slash"></i></div>
+          <h3>No notifications</h3>
+          <p>
+            {filter === 'unread' ? "You're all caught up!" : filter === 'read' ? 'No read notifications' : 'You have no notifications yet'}
+          </p>
+        </div>
+      )}
     </div>
   );
 };

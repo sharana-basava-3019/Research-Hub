@@ -1,42 +1,118 @@
-# Dependencies
-node_modules/
-venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
+# ==============================================================================
+# RESEARCH-HUB Root .gitignore
+# ==============================================================================
 
-# Environment variables
+# ------------------------------------------------------------------------------
+# 1. Environment & Sensitive Credentials
+# ------------------------------------------------------------------------------
 .env
-.env.local
-.env.production
-.env.development
+.env.*
+*.env
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.cert
+*.crt
+*.pfx
+*.p12
+id_rsa*
+*.credentials
+secrets/
 
-# Build outputs
+# ------------------------------------------------------------------------------
+# 2. User Uploads, Stored Media & Dynamic Content
+# ------------------------------------------------------------------------------
+uploads/*
+**/uploads/*
+!**/uploads/README.md
+!**/uploads/**/.gitkeep
+storage/*
+**/storage/*
+!**/storage/**/.gitkeep
+
+# ------------------------------------------------------------------------------
+# 3. Node.js & Frontend Dependencies / Builds
+# ------------------------------------------------------------------------------
+node_modules/
+**/node_modules/
 build/
+**/build/
 dist/
-*.log
+**/dist/
+.next/
+out/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
 
-# IDE
+# ------------------------------------------------------------------------------
+# 4. Python Analytics & Virtual Environments
+# ------------------------------------------------------------------------------
+venv/
+**/venv/
+.venv/
+**/env/
+**/ENV/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# ------------------------------------------------------------------------------
+# 5. Testing & Code Coverage
+# ------------------------------------------------------------------------------
+coverage/
+**/coverage/
+.nyc_output/
+.coverage
+.coverage.*
+htmlcov/
+
+# ------------------------------------------------------------------------------
+# 6. IDEs, Editors & Tooling
+# ------------------------------------------------------------------------------
 .vscode/
+!.vscode/extensions.json
+!.vscode/launch.json.example
 .idea/
+*.sublime-workspace
+*.sublime-project
 *.swp
 *.swo
 *~
+*.bak
 
-# OS
+# ------------------------------------------------------------------------------
+# 7. Operating System Files
+# ------------------------------------------------------------------------------
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# Testing
-coverage/
-.nyc_output/
-
-# Misc
-*.seed
+# ------------------------------------------------------------------------------
+# 8. Logs & Temporary Files
+# ------------------------------------------------------------------------------
+*.log
+**/logs/
 *.pid
 *.pid.lock
+*.seed
+*.tmp
+tmp/
+temp/

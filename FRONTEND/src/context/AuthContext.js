@@ -1,10 +1,6 @@
-/**
- * Authentication Context
- * Manages user authentication state and actions
- */
-
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import api from '../services/api';
+import { initSocket, disconnectSocket } from '../services/socket';
 import { toast } from 'react-toastify';
 
 const AuthContext = createContext();
@@ -42,6 +38,9 @@ export const AuthProvider = ({ children }) => {
         // Fetch user data
         const res = await api.get('/auth/me');
         setUser(res.data.data.user);
+
+        // Initialize real-time Socket.io connection
+        initSocket(token);
       }
     } catch (error) {
       console.error('Error loading user:', error);
@@ -50,6 +49,7 @@ export const AuthProvider = ({ children }) => {
       setToken(null);
       delete api.defaults.headers.common['Authorization'];
       setUser(null);
+      disconnectSocket();
     } finally {
       setLoading(false);
     }
@@ -70,6 +70,9 @@ export const AuthProvider = ({ children }) => {
       
       // Set user
       setUser(newUser);
+
+      // Connect socket
+      initSocket(newToken);
       
       toast.success('Registration successful! Welcome to RESEARCH-HUB.');
       return { success: true };
@@ -95,6 +98,9 @@ export const AuthProvider = ({ children }) => {
       
       // Set user
       setUser(newUser);
+
+      // Connect socket
+      initSocket(newToken);
       
       toast.success(`Welcome back, ${newUser.firstName}!`);
       return { success: true };
@@ -107,6 +113,9 @@ export const AuthProvider = ({ children }) => {
 
   // Logout user
   const logout = () => {
+    // Disconnect real-time socket
+    disconnectSocket();
+
     // Remove token
     localStorage.removeItem('token');
     setToken(null);

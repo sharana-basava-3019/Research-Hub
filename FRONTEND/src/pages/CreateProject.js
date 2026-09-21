@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import AuthContext from '../context/AuthContext';
 import api from '../services/api';
 import { toast } from 'react-toastify';
+import { isValidUrl } from '../utils/validation';
 
 const CreateProject = () => {
   const navigate = useNavigate();
@@ -82,6 +83,16 @@ const CreateProject = () => {
       toast.error('Research area is required');
       return;
     }
+    
+    // Validate URLs
+    if (formData.repository && !isValidUrl(formData.repository)) {
+      toast.error('Invalid repository URL. Please use http:// or https://');
+      return;
+    }
+    if (formData.documentation && !isValidUrl(formData.documentation)) {
+      toast.error('Invalid documentation URL. Please use http:// or https://');
+      return;
+    }
 
     try {
       setLoading(true);
@@ -126,13 +137,13 @@ const CreateProject = () => {
 
   if (!user) {
     return (
-      <div className="container section text-center">
-        <i className="bi bi-lock display-1 text-warning"></i>
-        <h3 className="mt-3">Authentication Required</h3>
-        <p className="text-muted">You must be logged in to create a project.</p>
-        <Link to="/login" className="btn btn-primary mt-3">
-          Login
-        </Link>
+      <div className="container section">
+        <div className="ds-empty">
+          <div className="ds-empty-icon"><i className="bi bi-lock"></i></div>
+          <h3>Authentication Required</h3>
+          <p>You must be logged in to create a project.</p>
+          <Link to="/login" className="btn btn-primary mt-3">Login</Link>
+        </div>
       </div>
     );
   }
@@ -164,10 +175,10 @@ const CreateProject = () => {
       </div>
 
       {/* Page Header */}
-      <div className="row mb-4">
-        <div className="col">
-          <h1 className="display-5 fw-bold">Create New Project</h1>
-          <p className="text-muted">Fill in the details below to create your research project.</p>
+      <div className="ds-page-header">
+        <div>
+          <h1 className="ds-page-title">Create New Project</h1>
+          <p className="ds-page-subtitle">Fill in the details below to create your research project.</p>
         </div>
       </div>
 

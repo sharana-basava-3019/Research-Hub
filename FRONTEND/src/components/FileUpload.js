@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { toast } from 'react-toastify';
+import { API_BASE_URL } from '../services/api';
+import { validateFileType } from '../utils/validation';
 
 const FileUpload = ({ projectId, onUploadSuccess }) => {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -20,6 +22,13 @@ const FileUpload = ({ projectId, onUploadSuccess }) => {
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
       toast.error('File size exceeds 20MB limit');
+      return;
+    }
+    
+    // Validate file type
+    const fileValidation = validateFileType(file);
+    if (!fileValidation.isValid) {
+      toast.error(fileValidation.message);
       return;
     }
 
@@ -46,6 +55,20 @@ const FileUpload = ({ projectId, onUploadSuccess }) => {
     const oversizedFiles = fileArray.filter(file => file.size > MAX_FILE_SIZE);
     if (oversizedFiles.length > 0) {
       toast.error(`Some files exceed 20MB: ${oversizedFiles.map(f => f.name).join(', ')}`);
+      return;
+    }
+    
+    // Validate file types
+    const invalidFiles = [];
+    for (const file of fileArray) {
+      const fileValidation = validateFileType(file);
+      if (!fileValidation.isValid) {
+        invalidFiles.push(file.name);
+      }
+    }
+    
+    if (invalidFiles.length > 0) {
+      toast.error(`Some files have invalid types: ${invalidFiles.slice(0, 5).join(', ')}${invalidFiles.length > 5 ? '...' : ''}`);
       return;
     }
 
@@ -221,7 +244,7 @@ const FileUpload = ({ projectId, onUploadSuccess }) => {
         reject(new Error('Upload failed'));
       });
 
-      xhr.open('POST', `http://localhost:5000/api/projects/${projectId}/attachments`);
+      xhr.open('POST', `${API_BASE_URL}/api/projects/${projectId}/attachments`);
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       xhr.send(formData);
     });
@@ -287,7 +310,7 @@ const FileUpload = ({ projectId, onUploadSuccess }) => {
         reject(new Error('Network error'));
       });
 
-      xhr.open('POST', `http://localhost:5000/api/projects/${projectId}/attachments`);
+      xhr.open('POST', `${API_BASE_URL}/api/projects/${projectId}/attachments`);
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       xhr.send(formData);
     });

@@ -96,7 +96,7 @@ const corsOptions = {
     'Access-Control-Request-Method',
     'Access-Control-Request-Headers'
   ],
-  exposedHeaders: ['Content-Range', 'X-Content-Range', 'Authorization'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range', 'Authorization', 'X-Trace-Step', 'X-Trace-User-Found', 'X-Trace-Password-Match'],
   maxAge: 86400
 };
 

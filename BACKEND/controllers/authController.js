@@ -70,19 +70,30 @@ exports.login = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Please provide valid email and password', 400));
   }
 
-  // Check for user (include password)
+  // --- TEMPORARY SAFE TRACE (NO sensitive credentials logged) ---
   const user = await User.findOne({ email }).select('+password');
+  const userFound = !!user;
+  console.log(`[AUTH_TRACE] 1. User.findOne({ email }) -> Found: ${userFound}`);
 
   if (!user) {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const ciUser = await User.findOne({ email: cleanEmail }).select('_id');
+    console.log(`[AUTH_TRACE] 1b. Normalized (trim/lowercase) lookup -> Found: ${!!ciUser}`);
+    res.set('X-Trace-User-Found', 'false');
+    res.set('X-Trace-Step', 'USER_NOT_FOUND');
     return next(new ErrorResponse('Invalid credentials', 401));
   }
 
-  // Check if password matches
+  res.set('X-Trace-User-Found', 'true');
   const isMatch = await user.comparePassword(password);
+  console.log(`[AUTH_TRACE] 2. bcrypt.compare() -> Match: ${isMatch}`);
+  res.set('X-Trace-Password-Match', isMatch ? 'true' : 'false');
 
   if (!isMatch) {
+    res.set('X-Trace-Step', 'BCRYPT_MISMATCH');
     return next(new ErrorResponse('Invalid credentials', 401));
   }
+  // --- END TEMPORARY SAFE TRACE ---
 
   // Check if account is active
   if (!user.isActive) {

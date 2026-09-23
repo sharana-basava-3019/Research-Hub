@@ -4,6 +4,7 @@
   "description": "Frontend for RESEARCH-HUB University Research Collaboration Platform",
   "private": true,
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "aos": "^2.3.4",
     "axios": "^1.6.2",
     "chart.js": "^4.4.1",

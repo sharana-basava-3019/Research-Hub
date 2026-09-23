@@ -167,18 +167,34 @@ const Settings = () => {
       <div className="row g-4">
         {/* Sidebar Navigation */}
         <div className="col-md-3">
-          <div className="card card-static">
-            <div className="card-body" style={{ padding: '8px' }}>
-              {[{tab:'account',icon:'bi-person-circle',label:'Account'},{tab:'security',icon:'bi-shield-lock',label:'Security'},{tab:'privacy',icon:'bi-eye',label:'Privacy'},{tab:'notifications',icon:'bi-bell',label:'Notifications'}].map(({tab,icon,label}) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={activeTab === tab ? 'btn btn-primary w-100 text-start mb-1' : 'btn btn-outline-primary w-100 text-start mb-1'}
-                  style={{ border: activeTab === tab ? undefined : 'none', background: activeTab === tab ? undefined : 'transparent', color: activeTab === tab ? undefined : 'var(--ds-text-secondary)' }}
-                >
-                  <i className={`bi ${icon} me-2`}></i>{label}
-                </button>
-              ))}
+          <div className="card card-static rh-settings-nav-card">
+            <div className="card-body">
+              <div className="rh-settings-nav">
+                {[
+                  { tab: 'account', icon: 'bi-person-circle', label: 'Account' },
+                  { tab: 'security', icon: 'bi-shield-lock', label: 'Security' },
+                  { tab: 'privacy', icon: 'bi-eye', label: 'Privacy' },
+                  { tab: 'notifications', icon: 'bi-bell', label: 'Notifications' },
+                ].map(({ tab, icon, label }) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`rh-settings-nav-btn ${
+                      activeTab === tab
+                        ? 'btn btn-primary'
+                        : 'btn btn-outline-primary'
+                    }`}
+                    style={{
+                      border: activeTab === tab ? undefined : '1px solid var(--color-border)',
+                      background: activeTab === tab ? undefined : 'transparent',
+                      color: activeTab === tab ? undefined : 'var(--color-text-2)',
+                    }}
+                  >
+                    <i className={`bi ${icon} me-2`}></i>
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

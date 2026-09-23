@@ -475,7 +475,7 @@ div.container.section {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  overflow: visible;
+  overflow: hidden;
   transition: box-shadow var(--duration) ease, border-color var(--duration) ease;
   display: flex;
   flex-direction: column;
@@ -584,6 +584,10 @@ div.container.section {
   border-radius: 999px;
   white-space: nowrap;
   letter-spacing: 0.01em;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .rh-sidebar-title {
@@ -1019,9 +1023,16 @@ div.container.section {
    ============================================================ */
 .rh-tabs {
   display: flex;
-  gap: 2px;
+  gap: 4px;
   border-bottom: 1px solid var(--color-border);
   margin-bottom: var(--sp-5);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.rh-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .rh-tab {
@@ -1039,6 +1050,8 @@ div.container.section {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .rh-tab:hover { color: var(--color-text); }
@@ -1354,8 +1367,55 @@ textarea:focus-visible {
 }
 
 /* ============================================================
-   RESPONSIVE BREAKPOINTS
+   RESPONSIVE BREAKPOINTS & LAYOUTS
    ============================================================ */
+/* Dashboard responsive grid */
+.rh-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+.rh-dashboard-main {
+  min-width: 0;
+}
+.rh-dashboard-side {
+  min-width: 0;
+}
+
+@media (min-width: 992px) {
+  .rh-dashboard-grid {
+    grid-template-columns: repeat(12, 1fr);
+    gap: 24px;
+  }
+  .rh-dashboard-main {
+    grid-column: span 8;
+  }
+  .rh-dashboard-side {
+    grid-column: span 4;
+  }
+}
+
+/* Settings responsive navigation */
+.rh-settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rh-settings-nav .rh-settings-nav-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+  width: 100% !important;
+  padding: 10px 16px !important;
+  border-radius: var(--radius-md) !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  transition: all var(--duration-fast) ease !important;
+  white-space: nowrap !important;
+  border: 1px solid transparent !important;
+}
+
 @media (max-width: 1024px) {
   .hidden-lg { display: none !important; }
 }
@@ -1365,11 +1425,49 @@ textarea:focus-visible {
   .rh-hero { padding: var(--sp-10) 0 var(--sp-8); }
   .rh-filter-bar { flex-direction: column; align-items: stretch; }
   .ds-section-header { flex-direction: column; align-items: flex-start; gap: var(--sp-2); }
+
+  /* Settings horizontal touch tabs on mobile */
+  .rh-settings-nav-card {
+    margin-bottom: 16px;
+  }
+  .rh-settings-nav-card .card-body {
+    padding: 8px !important;
+  }
+  .rh-settings-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .rh-settings-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .rh-settings-nav .rh-settings-nav-btn {
+    width: auto !important;
+    flex-shrink: 0 !important;
+    padding: 8px 14px !important;
+  }
 }
 
 @media (max-width: 640px) {
   .auth-page .card { border-radius: var(--radius-lg); }
   .rh-stats-strip { gap: var(--sp-4); }
+
+  .rh-project-card-body {
+    padding: 16px !important;
+  }
+  .rh-project-footer {
+    padding: 12px 16px !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .rh-filter-bar select.form-select {
+    width: 100% !important;
+    min-width: 100% !important;
+  }
 }
 
 /* ============================================================
@@ -1877,19 +1975,20 @@ a.btn:active,
   align-items: center !important;
   justify-content: flex-start !important;
   text-align: left !important;
-  gap: 10px !important;
+  gap: 12px !important;
   background: #ffffff !important;
   border: 1px solid var(--color-border) !important;
   border-radius: var(--radius-md) !important;
-  padding: 0 16px !important;
-  height: 42px !important;
-  min-height: 42px !important;
+  padding: 10px 16px !important;
+  min-height: 44px !important;
+  height: auto !important;
   font-size: 0.875rem !important;
   font-weight: 600 !important;
   color: var(--color-text) !important;
   text-decoration: none !important;
   transition: all var(--duration-fast) ease !important;
   width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .rh-quick-action-btn:hover {
@@ -1900,8 +1999,14 @@ a.btn:active,
 }
 
 .rh-quick-action-btn i {
-  font-size: 1.05rem !important;
+  font-size: 1.15rem !important;
   flex-shrink: 0 !important;
+}
+
+.rh-quick-action-btn span {
+  flex: 1;
+  line-height: 1.35;
+  word-break: normal;
 }
 
 /* Card Action Uniformity (Projects page) */

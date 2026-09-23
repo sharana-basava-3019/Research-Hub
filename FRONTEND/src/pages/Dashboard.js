@@ -92,7 +92,7 @@ const Dashboard = () => {
               {user?.institution || 'Academic Scholar'} • {user?.department || user?.designation || 'Faculty'}
             </p>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center flex-wrap gap-2">
             <Link to="/plagiarism" className="btn btn-outline-secondary">
               <i className="bi bi-shield-check me-1" />
               Plagiarism Check
@@ -105,7 +105,7 @@ const Dashboard = () => {
         </div>
 
         {/* Top Metrics Row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 24, marginBottom: 32 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 16, marginBottom: 32 }}>
           <div className="ds-stat-card">
             <div className="flex items-center justify-between">
               <div>
@@ -156,9 +156,9 @@ const Dashboard = () => {
         </div>
 
         {/* Main Grid: Left Projects, Right Secondary Panels */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 24 }}>
-          {/* Left Column (8 cols): My Projects */}
-          <div style={{ gridColumn: 'span 8' }}>
+        <div className="rh-dashboard-grid">
+          {/* Left Column: My Projects */}
+          <div className="rh-dashboard-main">
             <div className="card shadow-xs mb-6">
               <div className="card-header flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -195,7 +195,7 @@ const Dashboard = () => {
                         }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className="status-pill status-progress" style={{ fontSize: '0.7rem' }}>
                               {project.status || 'Active'}
                             </span>
@@ -298,8 +298,8 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Right Column (4 cols): Quick Actions & Feeds */}
-          <div style={{ gridColumn: 'span 4' }}>
+          {/* Right Column: Quick Actions & Feeds */}
+          <div className="rh-dashboard-side">
             {/* Quick Actions Card */}
             <div className="card shadow-xs mb-6">
               <div className="card-header">

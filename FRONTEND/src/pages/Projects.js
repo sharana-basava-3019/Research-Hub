@@ -144,7 +144,7 @@ const Projects = () => {
             </p>
           </div>
           {user && (
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center flex-wrap gap-2">
               <button
                 onClick={() => setShowMyProjects(!showMyProjects)}
                 className={`btn ${showMyProjects ? 'btn-primary' : 'btn-outline-secondary'}`}
@@ -245,7 +245,7 @@ const Projects = () => {
             </p>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px', marginBottom: '32px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: '20px', marginBottom: '32px' }}>
             {currentProjects.map((project) => {
               const currentUserId = user?._id || user?.id;
               const projectOwnerId = project.owner?._id || project.owner?.id || project.owner;
@@ -265,8 +265,8 @@ const Projects = () => {
                   <div className="rh-project-card-body d-flex flex-column flex-grow-1">
 
                     {/* Row 1: Status + Verified + Flagged Caution Symbol LEFT · Category RIGHT */}
-                    <div className="d-flex align-items-center justify-content-between mb-2" style={{ gap: '8px' }}>
-                      <div className="d-flex align-items-center" style={{ gap: '6px' }}>
+                    <div className="d-flex align-items-center justify-content-between flex-wrap mb-2" style={{ gap: '8px' }}>
+                      <div className="d-flex align-items-center flex-wrap" style={{ gap: '6px' }}>
                         {getStatusBadge(project.status)}
                         {project.is_verified && (
                           <span className="badge badge-success" title="Verified by a faculty professor">
@@ -286,9 +286,11 @@ const Projects = () => {
                         )}
                       </div>
                       {(project.researchArea || project.category) && (
-                        <span className="rh-category-badge" style={{ flexShrink: 0 }}>
+                        <span className="rh-category-badge" style={{ maxWidth: '100%' }}>
                           <i className="bi bi-tag" style={{ fontSize: '0.65rem' }} />
-                          {project.researchArea || project.category}
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {project.researchArea || project.category}
+                          </span>
                         </span>
                       )}
                     </div>
@@ -323,11 +325,11 @@ const Projects = () => {
                   </div>
 
                   {/* Actions footer */}
-                  <div className="rh-project-footer flex items-center justify-between">
+                  <div className="rh-project-footer flex items-center justify-between flex-wrap gap-2">
                     <Link
                       to={`/projects/${project._id}`}
                       className="rh-project-btn-details"
-                      style={{ flex: 1 }}
+                      style={{ flex: '1 1 120px' }}
                     >
                       <span>View Details</span>
                       <i className="bi bi-arrow-right" />
@@ -336,7 +338,7 @@ const Projects = () => {
                     {!isOwner && user && (
                       <button
                         className="btn btn-primary btn-sm"
-                        style={{ flex: 1 }}
+                        style={{ flex: '1 1 120px' }}
                         onClick={() => {
                           navigate('/send-collaboration-request', {
                             state: { project: project, targetUser: project.owner }

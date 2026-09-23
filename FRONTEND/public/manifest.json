@@ -1,7 +1,18 @@
 {
   "short_name": "RESEARCH-HUB",
   "name": "RESEARCH-HUB — Academic Research Collaboration Platform",
-  "icons": [],
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    }
+  ],
   "start_url": ".",
   "display": "standalone",
   "theme_color": "#4F46E5",
